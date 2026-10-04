@@ -167,7 +167,11 @@ Next steps:
       }
       setGrant(root, owner, grantee, level);
       render();
-      console.log(`\nTilt re-runs db-provision automatically. ${grantee} can now query "${owner.replace(/-/g, '_')}".<table>.`);
+      const schema = `"${owner.replace(/-/g, '_')}"`;
+      console.log(
+        `\nTilt re-runs db-provision automatically. ` +
+          (level === 'none' ? `${grantee} can no longer query ${schema}.` : `${grantee} can now ${level === 'read' ? 'read' : 'read and write'} ${schema}.<table>.`),
+      );
       return;
     }
     case 'migrate':
