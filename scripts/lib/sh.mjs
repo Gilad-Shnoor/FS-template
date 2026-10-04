@@ -1,8 +1,12 @@
 import { spawnSync } from 'node:child_process';
 
-/** Run a command, capture output. Never throws; check `.ok`. */
+/**
+ * Run a command, capture output. Never throws; check `.ok`.
+ * No shell: callers run real executables (docker, kubectl, tilt), which Windows finds without one,
+ * and a shell would re-parse the args (Node 24 warns about it: DEP0190).
+ */
 export function run(cmd, args, opts = {}) {
-  const res = spawnSync(cmd, args, { encoding: 'utf8', shell: process.platform === 'win32', ...opts });
+  const res = spawnSync(cmd, args, { encoding: 'utf8', ...opts });
   return {
     ok: res.status === 0 && !res.error,
     status: res.status,
