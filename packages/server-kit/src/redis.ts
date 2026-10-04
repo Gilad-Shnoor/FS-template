@@ -1,4 +1,5 @@
-// Redis add-on helper. Enable with: npm run addon redis  (and add "redis" to the service's `uses`)
+// Redis add-on helper. Enable with: npm run stack -- use <service> redis; the service's generated
+// connectStack() (src/stack.gen.ts) then creates the client and its readiness check.
 import { Redis } from 'ioredis';
 import type { Logger } from './logger';
 

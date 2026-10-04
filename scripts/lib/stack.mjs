@@ -92,6 +92,9 @@ export function normalizeStack(raw) {
   const hosts = new Map();
   for (const s of Object.values(services)) {
     const where = `services.${s.name}`;
+    if (s.template === 'worker' && !s.uses.includes('rabbitmq')) {
+      errors.push(`${where}.uses: worker services consume events, so they must use "rabbitmq"`);
+    }
     for (const addon of s.uses) {
       if (!ADDONS[addon]) errors.push(`${where}.uses: unknown add-on "${addon}"`);
       else if (!addons[addon].enabled) errors.push(`${where}.uses: add-on "${addon}" is disabled — run: npm run addon ${addon}`);

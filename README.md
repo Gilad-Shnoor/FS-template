@@ -54,8 +54,10 @@ Tilt runs automatically) turns it into:
 
 - `infra/k8s/generated/*.yaml`: namespace, Postgres, DB provisioning job, Gateway, routes,
   Deployments, Services, add-ons
-- `apps/<svc>/src/stack.gen.ts`: the env schema for what the service uses, plus typed clients for
-  the services it calls
+- `apps/<svc>/src/stack.gen.ts`: the env schema for what the service uses; `connectStack()`, which
+  connects to its database / Redis / RabbitMQ and returns their `/readyz` checks and shutdown hooks
+  (a resource the service doesn't declare is typed `undefined`); and typed clients for the services
+  it calls
 - `infra/k8s/generated/tilt.json`: the plan the `Tiltfile` executes
 
 Generated files are committed, so diffs show infra changes, and CI fails if they're stale.
@@ -69,7 +71,7 @@ npm run new:service -- billing --consumers api        # http service, own schema
 npm run new:service -- emails --template worker       # queue consumer (enables rabbitmq)
 npm run new:service -- reports --db shared            # db: own (default) | shared | none
 npm run addon -- redis                                # enable an add-on for the namespace
-npm run stack -- use api redis                        # inject REDIS_URL into api, validated at boot
+npm run stack -- use api redis                        # api gets REDIS_URL (validated at boot) + a redis client and /readyz check
 npm run link -- api billing                           # api calls billing (BILLING_URL + client)
 npm run db:grant -- billing reports read              # reports may SELECT from billing's schema
 ```

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { newService, preprocess, setGrant, setLink } from './lib/generate.mjs';
+import { newService, preprocess, setGrant, setLink, setUses } from './lib/generate.mjs';
 import { provisionSql, renderAll, writeRendered } from './lib/render.mjs';
 import { StackError, loadStack, normalizeStack } from './lib/stack.mjs';
 
@@ -35,6 +35,7 @@ function sandbox() {
 function render(dir) {
   return writeRendered(dir, renderAll(loadStack(dir), dir));
 }
+const read = (dir, rel) => readFileSync(path.join(dir, rel), 'utf8');
 
 test('the committed stack is valid and its generated files are up to date', () => {
   const stack = loadStack(repo);
@@ -75,8 +76,41 @@ test('new-service scaffolds files, wires consumers and renders', () => {
   const apiManifest = readFileSync(path.join(dir, 'infra/k8s/generated/50-service-api.yaml'), 'utf8');
   assert.match(apiManifest, /name: BILLING_URL\n\s+value: "?http:\/\/billing:3000/);
   const index = readFileSync(path.join(dir, 'apps/billing/src/index.ts'), 'utf8');
-  assert.doesNotMatch(index, /@if|createRedis/);
-  assert.match(index, /createDb/);
+  assert.doesNotMatch(index, /@if/);
+  assert.ok(index.includes('await connectStack(config, logger)'));
+});
+
+test('stack.gen.ts connects exactly what stack.json declares', () => {
+  const dir = sandbox();
+  newService(dir, 'billing', { db: 'own', uses: 'redis,rabbitmq' });
+  newService(dir, 'notes', { db: 'none' });
+  render(dir);
+
+  const billing = read(dir, 'apps/billing/src/stack.gen.ts');
+  for (const s of ['createDb(', 'createRedis(', 'createBroker(', 'db: Knex;', 'redis: Redis;', 'broker: Broker;', 'readiness.rabbitmq = ']) {
+    assert.ok(billing.includes(s), `billing stack.gen.ts lacks ${s}`);
+  }
+
+  const notes = read(dir, 'apps/notes/src/stack.gen.ts');
+  for (const mod of ['db', 'redis', 'rabbitmq']) assert.ok(!notes.includes(`@app/server-kit/${mod}`), mod);
+  assert.ok(notes.includes('return { db: undefined, redis: undefined, broker: undefined, readiness, cleanup };'));
+});
+
+test('using an add-on wires it into an existing service', () => {
+  const dir = sandbox();
+  assert.ok(read(dir, 'apps/api/src/stack.gen.ts').includes('redis: undefined;'));
+  setUses(dir, 'api', 'redis', true);
+  render(dir);
+  const api = read(dir, 'apps/api/src/stack.gen.ts');
+  for (const s of ['...redisEnvSchema.shape', 'redis: Redis;', 'readiness.redis = () => redis.ping();', 'cleanup.push(() => redis.quit());']) {
+    assert.ok(api.includes(s), `api stack.gen.ts lacks ${s}`);
+  }
+});
+
+test('a worker must use rabbitmq', () => {
+  const dir = sandbox();
+  newService(dir, 'emails', { template: 'worker' });
+  assert.throws(() => setUses(dir, 'emails', 'rabbitmq', false), /must use "rabbitmq"/);
 });
 
 test('worker without db gets rabbitmq and no db files', () => {

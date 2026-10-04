@@ -1,4 +1,5 @@
-// RabbitMQ add-on helper. Enable with: npm run addon rabbitmq  (and add "rabbitmq" to `uses`)
+// RabbitMQ add-on helper. Enable with: npm run stack -- use <service> rabbitmq; the service's generated
+// connectStack() (src/stack.gen.ts) then creates the broker and its readiness check.
 import type { EventDef, EventPayload } from '@app/contracts';
 import amqp from 'amqplib';
 import { REQUEST_ID_HEADER, currentRequestId, requestContext } from './context';

@@ -13,7 +13,7 @@ Kubernetes manifest and some TypeScript is generated from it.
 stack.json                  topology: services, add-ons, db modes, calls, grants   ← edit this
 apps/web                    Vite + React + TanStack Router/Query + Tailwind (SPA)
 apps/api                    Express API: src/modules/<feature>/ (routes + repo), migrations/, seeds/
-apps/<svc>/src/stack.gen.ts GENERATED: env schema + typed clients for what <svc> uses/calls
+apps/<svc>/src/stack.gen.ts GENERATED: env schema, connectStack() (db/redis/broker + readiness), typed clients
 packages/contracts          ISOMORPHIC Zod schemas, route + event definitions, typed fetch client
 packages/server-kit         BACKEND-ONLY: config, logger, createApp (middleware), implement(), db, redis, rabbitmq
 infra/k8s/generated         GENERATED manifests (never edit) — customize via infra/k8s/patches/
@@ -35,7 +35,7 @@ Tiltfile                    dev loop; reads infra/k8s/generated/tilt.json
 | Resource status | `tilt get uiresources` |
 | Show topology | `npm run stack:list` |
 | New service | `npm run new:service -- billing --consumers api` |
-| Enable add-on / let a service use it | `npm run addon -- redis` then `npm run stack -- use api redis` |
+| Enable add-on / let a service use it | `npm run addon -- redis` then `npm run stack -- use api redis` (`connectStack()` then returns `redis`) |
 | Service A calls B | `npm run link -- a b` |
 | DB access across schemas | `npm run db:grant -- billing reports read` |
 | New migration | `npm run db:make -w apps/api -- add_tags` (runs automatically on save via Tilt) |

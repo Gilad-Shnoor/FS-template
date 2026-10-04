@@ -1,40 +1,23 @@
-import { createLogger, loadConfig, runMain, startServer, type Cleanup, type ReadinessCheck } from '@app/server-kit';
-import { createDb } from '@app/server-kit/db';
-import { createBroker } from '@app/server-kit/rabbitmq';
-import { createRedis } from '@app/server-kit/redis';
+import { createLogger, loadConfig, runMain, startServer } from '@app/server-kit';
 import { buildApp } from './app';
 import { apiEnvSchema } from './config';
 import { createAuth } from './modules/auth/auth';
 import { createKnexTodoRepo } from './modules/todos/repo';
+import { connectStack } from './stack.gen';
 
 runMain(async () => {
   const config = loadConfig(apiEnvSchema);
   const logger = createLogger(config);
-  const readiness: Record<string, ReadinessCheck> = {};
-  const cleanup: Cleanup[] = [];
 
-  const db = createDb({ url: config.DATABASE_URL, schema: config.DB_SCHEMA, poolMax: config.DB_POOL_MAX, logger });
-  readiness.db = () => db.raw('select 1');
-  cleanup.push(() => db.destroy());
+  // db/redis/broker as declared in stack.json, plus their /readyz checks and shutdown hooks.
+  // `redis` and `broker` are typed `undefined` until stack.json gives api the add-on
+  // (npm run stack -- use api redis|rabbitmq). buildApp takes `broker` for todo events;
+  // pass `redis` the same way when a feature needs it.
+  const { db, broker, readiness, cleanup } = await connectStack(config, logger);
 
   const authBundle = config.AUTH_ENABLED ? createAuth(config) : null;
   if (authBundle) cleanup.push(() => authBundle.pool.end());
   else logger.warn('AUTH_ENABLED=false: every request is the fixed dev user');
-
-  // Only present when stack.json lists redis in api's `uses` (npm run stack -- use api redis).
-  // Pass `redis` into buildApp when a feature needs it (e.g. `cached()` from @app/server-kit/redis).
-  const redis = 'REDIS_URL' in config ? createRedis(String(config.REDIS_URL), logger) : undefined;
-  if (redis) {
-    readiness.redis = () => redis.ping();
-    cleanup.push(() => redis.quit());
-  }
-
-  // Only present when stack.json lists rabbitmq in api's `uses` (npm run stack -- use api rabbitmq).
-  const broker = 'RABBITMQ_URL' in config ? await createBroker(String(config.RABBITMQ_URL), logger) : undefined;
-  if (broker) {
-    readiness.rabbitmq = () => broker.ping();
-    cleanup.unshift(() => broker.close());
-  }
 
   const app = buildApp({
     config,
@@ -42,7 +25,7 @@ runMain(async () => {
     auth: authBundle?.auth ?? null,
     todos: createKnexTodoRepo(db),
     readiness,
-    publish: broker ? (event, payload) => broker.publish(event, payload) : undefined,
+    broker,
   });
 
   startServer(app, { port: config.PORT, logger, onShutdown: cleanup });
