@@ -12,7 +12,7 @@ import { loadStack } from './lib/stack.mjs';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const stack = loadStack(root);
 const ctx = stack.kubeContext;
-const VERSION = process.env.ENVOY_GATEWAY_VERSION ?? 'v1.5.0'; // bump as needed: github.com/envoyproxy/gateway/releases
+const VERSION = process.env.ENVOY_GATEWAY_VERSION ?? 'v1.9.2'; // bump as needed: github.com/envoyproxy/gateway/releases
 const kubectl = (...args) => run('kubectl', ['--context', ctx, ...args], { stdio: ['pipe', 'inherit', 'inherit'] });
 
 function step(title, fn) {
