@@ -1,6 +1,6 @@
 // node --test scripts/   (npm run test:scripts)
 import assert from 'node:assert/strict';
-import { cpSync, existsSync, mkdtempSync, readFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -11,12 +11,29 @@ import { StackError, loadStack, normalizeStack } from './lib/stack.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
+// A fixed web + api topology, so the tests don't depend on what the working tree's stack.json
+// currently contains (e.g. services you're experimenting with).
+const FIXTURE_STACK = {
+  project: 'fs-template',
+  addons: { redis: { enabled: false }, rabbitmq: { enabled: false } },
+  services: {
+    web: { template: 'web', public: 'app.localhost', routes: { '/api': 'api' } },
+    api: { template: 'http', db: 'own', uses: [], calls: [], replicas: 1, env: {} },
+  },
+};
+
 function sandbox() {
   const dir = mkdtempSync(path.join(tmpdir(), 'stack-'));
-  for (const p of ['stack.json', 'templates', 'apps/api/src', 'infra/k8s', 'packages/contracts/src']) {
+  for (const p of ['templates', 'apps/api/src', 'infra/k8s', 'packages/contracts/src']) {
     cpSync(path.join(repo, p), path.join(dir, p), { recursive: true });
   }
+  writeFileSync(path.join(dir, 'stack.json'), JSON.stringify(FIXTURE_STACK, null, 2));
+  render(dir); // generated files (e.g. apps/api/src/stack.gen.ts) now match the fixture
   return dir;
+}
+
+function render(dir) {
+  return writeRendered(dir, renderAll(loadStack(dir), dir));
 }
 
 test('the committed stack is valid and its generated files are up to date', () => {
