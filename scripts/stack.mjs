@@ -196,7 +196,7 @@ Next steps:
     }
     case 'db-shell': {
       const stack = loadStack(root);
-      process.exit(kubectl(stack, ['exec', '-it', 'statefulset/postgres', '--', 'psql', '-U', 'postgres', stack.postgres.database]));
+      process.exit(kubectl(stack, ['exec', '-it', 'statefulset/postgres', '-c', 'postgres', '--', 'psql', '-U', 'postgres', stack.postgres.database]));
       return;
     }
     case undefined:
