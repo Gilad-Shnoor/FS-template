@@ -301,7 +301,11 @@ const ADDON_MANIFESTS = {
                   { name: 'amqp', containerPort: 5672 },
                   { name: 'management', containerPort: 15672 },
                 ],
-                readinessProbe: { exec: { command: ['rabbitmq-diagnostics', '-q', 'ping'] }, periodSeconds: 10, timeoutSeconds: 10 },
+                // Not `rabbitmq-diagnostics ping`: run as root before the broker has written its
+                // Erlang cookie, the CLI creates a root-owned one (HOME=/var/lib/rabbitmq) and the
+                // broker then crash-loops with "Error when reading .erlang.cookie: eacces".
+                // The AMQP port only opens once the broker has booted.
+                readinessProbe: { tcpSocket: { port: 'amqp' }, periodSeconds: 5 },
                 resources: { requests: { cpu: '50m', memory: '256Mi' }, limits: { memory: '1Gi' } },
               },
             ],
