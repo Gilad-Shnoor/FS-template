@@ -41,9 +41,11 @@ Tiltfile                    dev loop; reads infra/k8s/generated/tilt.json
 | New migration | `npm run db:make -w apps/api -- add_tags` (runs automatically on save via Tilt) |
 | Migrate / seed / psql | `npm run db:migrate` · `npm run db:seed` · `npm run db:shell` |
 | Verify before finishing | `npm run check` (render --check, lint, typecheck, tests) |
+| End-to-end check of the running stack | `npm run smoke` (gateway, auth, todo CRUD, errors, request ids) |
 
 Unit tests don't need the cluster (`npm test`). The API tests run with auth disabled and an
-in-memory repo.
+in-memory repo. `npm run smoke` needs the stack up (`npm run dev` or `tilt ci`) with the default
+`AUTH_ENABLED=true`; it resolves `*.localhost` itself, so no hosts-file edit is needed.
 
 ## Rules
 
