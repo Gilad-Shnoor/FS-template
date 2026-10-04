@@ -47,6 +47,9 @@ for svc in plan['services']:
         dockerfile='infra/docker/node.Dockerfile',
         target='dev',
         build_args={'SERVICE': name},
+        # Only what the image needs. Without this, editing any root file (stack.json, eslint config,
+        # an editor's temp file) matched no sync rule and forced a full rebuild of every image.
+        only=['apps', 'packages', 'package.json', 'package-lock.json', 'tsconfig.base.json'],
         ignore=ignore,
         live_update=[
             fall_back_on(['package.json', 'package-lock.json', 'apps/%s/package.json' % name, 'packages/contracts/package.json', 'packages/server-kit/package.json']),
