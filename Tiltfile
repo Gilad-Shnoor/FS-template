@@ -37,7 +37,7 @@ for addon in plan['addons']:
 # 3. Services: one image per service from the shared Dockerfile, with live sync instead of rebuilds.
 # Every image syncs apps/ and packages/ (shared code changes reach every service); each service's
 # dev server only reloads for files it actually imports. package.json changes trigger a rebuild.
-ignore = ['**/node_modules', '**/dist', '.git', 'infra', 'scripts', 'templates', '**/*.md', '**/*.test.ts']
+ignore = ['**/node_modules', '**/dist', '**/.tanstack', '.git', 'infra', 'scripts', 'templates', '**/*.md', '**/*.test.ts']
 
 for svc in plan['services']:
     name = svc['name']

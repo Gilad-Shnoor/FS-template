@@ -8,3 +8,4 @@ coverage/
 .DS_Store
 .tilt-dev/
 apps/*/src/routeTree.gen.ts
+.tanstack/
