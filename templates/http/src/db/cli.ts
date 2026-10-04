@@ -6,12 +6,17 @@ import { dbEnvSchema, loadConfig, runMain } from '@app/server-kit';
 import { createDb, runDbCli } from '@app/server-kit/db';
 
 runMain(async () => {
-  const config = loadConfig(dbEnvSchema);
   await runDbCli({
-    db: createDb({ url: config.DATABASE_URL, schema: config.DB_SCHEMA }),
-    service: config.SERVICE_NAME,
-    schema: config.DB_SCHEMA,
     root: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..'),
+    // Not needed by `make`, so new migrations can be created on the host.
+    connect: () => {
+      const config = loadConfig(dbEnvSchema);
+      return {
+        db: createDb({ url: config.DATABASE_URL, schema: config.DB_SCHEMA }),
+        service: config.SERVICE_NAME,
+        schema: config.DB_SCHEMA,
+      };
+    },
   });
 });
 // @endif

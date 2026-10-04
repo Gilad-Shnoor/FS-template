@@ -35,12 +35,20 @@ export function createDb(opts: DbOptions): Knex {
   });
 }
 
-export interface DbCliOptions {
+export interface DbConnection {
   db: Knex;
   service: string;
   schema: string;
+}
+
+export interface DbCliOptions {
   /** Service root directory (contains migrations/ and seeds/). */
   root: string;
+  /**
+   * Load config and connect. Only called for commands that touch the database, so
+   * `make` works on the host without DATABASE_URL.
+   */
+  connect: () => DbConnection;
 }
 
 /**
@@ -50,31 +58,51 @@ export interface DbCliOptions {
  */
 export async function runDbCli(opts: DbCliOptions, argv = process.argv.slice(2)): Promise<void> {
   const [command = 'latest', name] = argv;
+
+  if (command === 'make') {
+    if (!name) throw new Error('Usage: db:make <name>');
+    const stamp = new Date().toISOString().replace(/\D/g, '').slice(0, 14);
+    const file = path.join(opts.root, 'migrations', `${stamp}_${name.replace(/\W+/g, '_')}.ts`);
+    await mkdir(path.dirname(file), { recursive: true });
+    await writeFile(file, MIGRATION_TEMPLATE, { flag: 'wx' });
+    console.log(`Created ${path.relative(process.cwd(), file)}`);
+    return;
+  }
+
+  if (!['latest', 'rollback', 'status', 'seed'].includes(command)) {
+    throw new Error(
+      `Unknown db command "${command}" (latest | rollback | status | make <name> | seed)`,
+    );
+  }
+
+  const { db, service, schema } = opts.connect();
   const ext = import.meta.url.endsWith('.ts') ? 'ts' : 'js';
   const migrations: Knex.MigratorConfig = {
     directory: path.join(opts.root, 'migrations'),
     loadExtensions: [`.${ext}`],
     extension: ext,
     // Own schema: keep the bookkeeping table inside it. Shared schema: one table per service.
-    ...(opts.schema === 'public'
-      ? { tableName: `knex_migrations_${opts.service.replace(/-/g, '_')}` }
-      : { schemaName: opts.schema, tableName: 'knex_migrations' }),
+    ...(schema === 'public'
+      ? { tableName: `knex_migrations_${service.replace(/-/g, '_')}` }
+      : { schemaName: schema, tableName: 'knex_migrations' }),
   };
 
   try {
     switch (command) {
       case 'latest': {
-        const [batch, files] = (await opts.db.migrate.latest(migrations)) as [number, string[]];
+        const [batch, files] = (await db.migrate.latest(migrations)) as [number, string[]];
         console.log(files.length ? `Batch ${batch}: ${files.join(', ')}` : 'Already up to date');
         break;
       }
       case 'rollback': {
-        const [batch, files] = (await opts.db.migrate.rollback(migrations)) as [number, string[]];
-        console.log(files.length ? `Rolled back batch ${batch}: ${files.join(', ')}` : 'Nothing to roll back');
+        const [batch, files] = (await db.migrate.rollback(migrations)) as [number, string[]];
+        console.log(
+          files.length ? `Rolled back batch ${batch}: ${files.join(', ')}` : 'Nothing to roll back',
+        );
         break;
       }
       case 'status': {
-        const [done, pending] = (await opts.db.migrate.list(migrations)) as [
+        const [done, pending] = (await db.migrate.list(migrations)) as [
           { name: string }[],
           { file: string }[],
         ];
@@ -82,28 +110,17 @@ export async function runDbCli(opts: DbCliOptions, argv = process.argv.slice(2))
         console.log(`Pending (${pending.length}):`, pending.map((m) => m.file).join(', ') || '-');
         break;
       }
-      case 'make': {
-        if (!name) throw new Error('Usage: db:make <name>');
-        const stamp = new Date().toISOString().replace(/\D/g, '').slice(0, 14);
-        const file = path.join(opts.root, 'migrations', `${stamp}_${name.replace(/\W+/g, '_')}.ts`);
-        await mkdir(path.dirname(file), { recursive: true });
-        await writeFile(file, MIGRATION_TEMPLATE, { flag: 'wx' });
-        console.log(`Created ${path.relative(process.cwd(), file)}`);
-        break;
-      }
       case 'seed': {
-        const [files] = (await opts.db.seed.run({
+        const [files] = (await db.seed.run({
           directory: path.join(opts.root, 'seeds'),
           loadExtensions: [`.${ext}`],
         })) as [string[]];
         console.log(`Ran ${files.length} seed file(s)`);
         break;
       }
-      default:
-        throw new Error(`Unknown db command "${command}" (latest | rollback | status | make <name> | seed)`);
     }
   } finally {
-    await opts.db.destroy();
+    await db.destroy();
   }
 }
 
