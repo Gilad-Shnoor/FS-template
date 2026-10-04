@@ -1,0 +1,46 @@
+{
+  "project": "fs-template",
+  "namespace": "fs-template",
+  "kubeContext": "docker-desktop",
+  "postgresLocalPort": 15432,
+  "services": [
+    {
+      "name": "web",
+      "image": "fs-template-web",
+      "template": "web",
+      "node": false,
+      "debugPort": null,
+      "migrate": false,
+      "deps": [],
+      "links": [
+        "http://app.localhost"
+      ]
+    },
+    {
+      "name": "api",
+      "image": "fs-template-api",
+      "template": "http",
+      "node": true,
+      "debugPort": 9229,
+      "migrate": true,
+      "deps": [
+        "db-provision"
+      ],
+      "links": [
+        "http://api.localhost"
+      ]
+    }
+  ],
+  "addons": [],
+  "networkingObjects": [
+    "gateway:gateway:fs-template",
+    "web:httproute:fs-template",
+    "api:httproute:fs-template"
+  ],
+  "configObjects": [
+    "fs-template:namespace",
+    "postgres-superuser:secret:fs-template",
+    "db-provision-sql:configmap:fs-template",
+    "api-db:secret:fs-template"
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "name": "fs-template",
+  "private": true,
+  "type": "module",
+  "description": "Full-stack interview template: React SPA + Express services on local Kubernetes, driven by stack.json and Tilt.",
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "doctor": "node scripts/doctor.mjs",
+    "cluster:setup": "node scripts/cluster-setup.mjs",
+    "dev": "tilt up",
+    "down": "tilt down",
+    "reset": "tilt down --delete-namespaces",
+    "logs": "tilt logs -f",
+    "stack": "node scripts/stack.mjs",
+    "stack:render": "node scripts/stack.mjs render",
+    "stack:list": "node scripts/stack.mjs list",
+    "new:service": "node scripts/stack.mjs new-service",
+    "addon": "node scripts/stack.mjs addon",
+    "link": "node scripts/stack.mjs link",
+    "db:grant": "node scripts/stack.mjs grant",
+    "db:migrate": "node scripts/stack.mjs migrate",
+    "db:seed": "node scripts/stack.mjs seed",
+    "db:shell": "node scripts/stack.mjs db-shell",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "test:scripts": "node --test \"scripts/**/*.test.mjs\"",
+    "check": "node scripts/stack.mjs render --check && npm run lint && npm run typecheck && npm run test && npm run test:scripts"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.33.0",
+    "eslint": "^9.33.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "globals": "^16.3.0",
+    "prettier": "^3.6.2",
+    "typescript": "^5.9.2",
+    "typescript-eslint": "^8.40.0"
+  }
+}

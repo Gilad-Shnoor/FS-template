@@ -1,0 +1,17 @@
+// @if db
+// tsx src/db/cli.ts latest | rollback | status | make <name> | seed
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { dbEnvSchema, loadConfig, runMain } from '@app/server-kit';
+import { createDb, runDbCli } from '@app/server-kit/db';
+
+runMain(async () => {
+  const config = loadConfig(dbEnvSchema);
+  await runDbCli({
+    db: createDb({ url: config.DATABASE_URL, schema: config.DB_SCHEMA }),
+    service: config.SERVICE_NAME,
+    schema: config.DB_SCHEMA,
+    root: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..'),
+  });
+});
+// @endif

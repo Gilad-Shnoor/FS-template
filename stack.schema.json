@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "stack.json",
+  "description": "Source of truth for this repo's services, add-ons and how they connect. Edit it (or use `npm run stack`), then `npm run stack:render`. Tilt re-renders automatically.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "project": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*[a-z0-9]$",
+      "description": "Used for the namespace and image names. Rename per assignment."
+    },
+    "namespace": { "type": "string", "description": "Defaults to project." },
+    "kubeContext": { "type": "string", "default": "docker-desktop", "description": "Tilt refuses to deploy to any other context." },
+    "gateway": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": { "className": { "type": "string", "default": "envoy-gateway" } }
+    },
+    "postgres": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "image": { "type": "string", "default": "postgres:17-alpine" },
+        "database": { "type": "string", "default": "app" },
+        "localPort": { "type": "integer", "default": 15432, "description": "Port-forwarded to localhost by Tilt." },
+        "storage": { "type": "string", "default": "1Gi" }
+      }
+    },
+    "addons": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Namespace-wide infrastructure. Services opt in via `uses`.",
+      "properties": {
+        "redis": { "$ref": "#/$defs/addon" },
+        "rabbitmq": { "$ref": "#/$defs/addon" }
+      }
+    },
+    "services": {
+      "type": "object",
+      "propertyNames": { "pattern": "^[a-z][a-z0-9-]{0,30}[a-z0-9]$" },
+      "additionalProperties": { "$ref": "#/$defs/service" }
+    }
+  },
+  "required": ["project", "services"],
+  "$defs": {
+    "addon": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": { "enabled": { "type": "boolean" } }
+    },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "template": {
+          "enum": ["http", "worker", "web"],
+          "default": "http",
+          "description": "http: Express API. worker: queue consumer (health endpoints only). web: the Vite SPA."
+        },
+        "public": {
+          "type": "string",
+          "description": "Hostname routed by the gateway, e.g. api.localhost. Omit for cluster-internal services."
+        },
+        "routes": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Path prefix → service on this service's host, e.g. { \"/api\": \"api\" }."
+        },
+        "port": { "type": "integer" },
+        "replicas": { "type": "integer", "minimum": 0, "default": 1 },
+        "db": {
+          "description": "own: private schema + role. shared: the public schema, shared with other `shared` services. none: no DB.",
+          "oneOf": [
+            { "enum": ["own", "shared", "none"] },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "mode": { "enum": ["own", "shared", "none"] },
+                "grants": {
+                  "type": "object",
+                  "description": "Other services allowed into this service's schema.",
+                  "additionalProperties": { "enum": ["read", "readwrite"] }
+                }
+              }
+            }
+          ]
+        },
+        "uses": {
+          "type": "array",
+          "items": { "enum": ["redis", "rabbitmq"] },
+          "uniqueItems": true,
+          "description": "Add-ons this service connects to (their URLs are injected as env)."
+        },
+        "calls": {
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true,
+          "description": "Services this one calls over HTTP. Injects <NAME>_URL and a typed client in src/stack.gen.ts."
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Extra env vars (local dev values only; never real secrets)."
+        }
+      }
+    }
+  }
+}

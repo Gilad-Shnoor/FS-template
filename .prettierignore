@@ -1,0 +1,3 @@
+infra/k8s/generated
+**/routeTree.gen.ts
+package-lock.json
