@@ -1,6 +1,6 @@
 // node --test scripts/   (npm run test:scripts)
 import assert from 'node:assert/strict';
-import { cpSync, existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -40,6 +40,18 @@ const read = (dir, rel) => readFileSync(path.join(dir, rel), 'utf8');
 test('the committed stack is valid and its generated files are up to date', () => {
   const stack = loadStack(repo);
   assert.deepEqual(writeRendered(repo, renderAll(stack, repo), { check: true }), []);
+});
+
+test('package-lock.json lists exactly the workspaces that exist', () => {
+  // npm keeps lock entries for deleted workspace folders (e.g. after removing a generated
+  // service), which pins their stale dependency ranges and skews hoisting.
+  const lock = JSON.parse(readFileSync(path.join(repo, 'package-lock.json'), 'utf8'));
+  const locked = Object.keys(lock.packages).filter((k) => /^(apps|packages)\/[^/]+$/.test(k)).sort();
+  const actual = ['apps', 'packages']
+    .flatMap((dir) => readdirSync(path.join(repo, dir)).map((name) => `${dir}/${name}`))
+    .filter((ws) => existsSync(path.join(repo, ws, 'package.json')))
+    .sort();
+  assert.deepEqual(locked, actual, 'lockfile out of sync: run npm install (after deleting a workspace: rm package-lock.json && npm install)');
 });
 
 test('validation reports every problem at once', () => {
