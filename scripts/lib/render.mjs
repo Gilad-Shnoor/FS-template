@@ -257,7 +257,7 @@ const ADDON_MANIFESTS = {
             containers: [
               {
                 name: 'redis',
-                image: 'redis:7-alpine',
+                image: 'redis:8-alpine',
                 args: ['--save', '', '--appendonly', 'no'],
                 ports: [{ name: 'redis', containerPort: 6379 }],
                 readinessProbe: { exec: { command: ['redis-cli', 'ping'] }, periodSeconds: 5 },

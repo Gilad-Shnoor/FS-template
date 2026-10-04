@@ -49,7 +49,7 @@ USER node
 EXPOSE 3000
 CMD ["node", "--enable-source-maps", "dist/src/index.js"]
 
-FROM nginx:1.27-alpine AS prod-web
+FROM nginx:1.30-alpine AS prod-web
 ARG SERVICE=web
 COPY --from=build /repo/apps/${SERVICE}/dist /usr/share/nginx/html
 RUN printf 'server {\n  listen 80;\n  root /usr/share/nginx/html;\n  location / { try_files $uri /index.html; }\n}\n' > /etc/nginx/conf.d/default.conf
