@@ -132,9 +132,18 @@ Next steps:
     }
     case 'remove-service': {
       const [name] = positionals;
+      const hadDb = loadStack(root).services[name]?.db.mode !== 'none';
       removeService(root, name);
       render();
-      console.log(`Removed "${name}" from stack.json. Delete apps/${name} and packages/contracts/src/${name} when ready.`);
+      console.log(`Removed "${name}" from stack.json; Tilt removes its workloads.`);
+      console.log(`Next: delete apps/${name} and packages/contracts/src/${name}, then npm install.`);
+      if (hadDb) {
+        const role = name.replace(/-/g, '_');
+        console.log(
+          `Its database role and data are kept (provisioning never drops anything). To delete them:\n` +
+            `  npm run db:shell   then   DROP OWNED BY ${role} CASCADE; DROP ROLE ${role};`,
+        );
+      }
       return;
     }
     case 'addon': {

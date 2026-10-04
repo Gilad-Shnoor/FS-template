@@ -74,6 +74,7 @@ npm run addon -- redis                                # enable an add-on for the
 npm run stack -- use api redis                        # api gets REDIS_URL (validated at boot) + a redis client and /readyz check
 npm run link -- api billing                           # api calls billing (BILLING_URL + client)
 npm run db:grant -- billing reports read              # reports may SELECT from billing's schema
+npm run stack -- remove-service billing               # remove from stack.json (DB role + data are kept, see AGENTS.md)
 ```
 
 ### Service communication

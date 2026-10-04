@@ -82,6 +82,13 @@ in-memory repo. `npm run smoke` needs the stack up (`npm run dev` or `tilt ci`) 
 - **Gateway / hostnames:** `kubectl -n fs-template get gateway,httproute`. Port 80 must be free.
   If `*.localhost` doesn't resolve for CLI tools, `npm run doctor` tells you what to add to the hosts file.
 - **Stuck state:** `npm run reset` (deletes the namespace, including DB data), then `npm run dev`.
+- **Removing a service:** `npm run stack -- remove-service billing` drops it from stack.json (Tilt
+  deletes its workloads); then delete `apps/billing` and `packages/contracts/src/billing`, and run
+  `npm install`. Its Postgres role and data are **kept**: db-provision only creates and grants,
+  it never drops. To delete them, in `npm run db:shell`:
+  `DROP OWNED BY billing CASCADE; DROP ROLE billing;` (works for `db: own`, where it drops the
+  schema, and `db: shared`, where it drops the service's tables in `public` and its
+  `knex_migrations_billing` table). Use the role name, i.e. `-` → `_`.
 
 ## Auth
 
