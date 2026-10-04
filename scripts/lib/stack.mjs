@@ -131,7 +131,7 @@ export function normalizeStack(raw) {
     kubeContext: raw.kubeContext ?? 'docker-desktop',
     gateway: { className: raw.gateway?.className ?? 'envoy-gateway' },
     postgres: {
-      image: raw.postgres?.image ?? 'postgres:17-alpine',
+      image: raw.postgres?.image ?? 'postgres:18-alpine',
       database: raw.postgres?.database ?? 'app',
       localPort: raw.postgres?.localPort ?? 15432,
       storage: raw.postgres?.storage ?? '1Gi',

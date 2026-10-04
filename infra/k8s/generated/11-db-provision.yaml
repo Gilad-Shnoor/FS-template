@@ -47,7 +47,7 @@ spec:
       restartPolicy: OnFailure
       containers:
       - name: psql
-        image: postgres:17-alpine
+        image: postgres:18-alpine
         command:
         - sh
         - "-c"

@@ -58,16 +58,31 @@ function postgres(stack) {
         template: {
           metadata: { labels: labels(stack, 'postgres', 'database') },
           spec: {
+            // Volumes created before the switch to postgres 18 hold data in pgdata/; postgres 18 would
+            // silently init an empty cluster next to it. Fail loudly with the fix instead.
+            initContainers: [
+              {
+                name: 'check-data-layout',
+                image: pg.image,
+                command: [
+                  'sh',
+                  '-c',
+                  'if [ -s /var/lib/postgresql/pgdata/PG_VERSION ]; then echo "Found Postgres $(cat /var/lib/postgresql/pgdata/PG_VERSION) data from the old layout. Run: npm run reset (deletes local DB data), then npm run dev."; exit 1; fi',
+                ],
+                volumeMounts: [{ name: 'data', mountPath: '/var/lib/postgresql' }],
+              },
+            ],
             containers: [
               {
                 name: 'postgres',
                 image: pg.image,
                 ports: [{ name: 'postgres', containerPort: 5432 }],
                 envFrom: [{ secretRef: { name: 'postgres-superuser' } }],
-                env: [{ name: 'PGDATA', value: '/var/lib/postgresql/data/pgdata' }],
                 readinessProbe: { exec: { command: ['pg_isready', '-U', 'postgres'] }, periodSeconds: 5 },
                 resources: { requests: { cpu: '50m', memory: '128Mi' }, limits: { memory: '512Mi' } },
-                volumeMounts: [{ name: 'data', mountPath: '/var/lib/postgresql/data' }],
+                // Mount the parent dir: postgres 18+ keeps data in a versioned subdir (18/docker) and
+                // refuses to start with a volume at /var/lib/postgresql/data. Also fine for <=17.
+                volumeMounts: [{ name: 'data', mountPath: '/var/lib/postgresql' }],
               },
             ],
           },
