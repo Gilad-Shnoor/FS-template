@@ -10,9 +10,9 @@ flowchart LR
   G -->|/| W[web<br/>Vite + React]
   G -->|/api| A[api<br/>Express]
   A --> P[(Postgres<br/>schema per service)]
-  A -. stack.json calls .-> S[new service]
-  A -. optional .-> R[(Redis)]
-  A -. optional .-> Q[[RabbitMQ]] -.-> K[worker]
+  A -.->|"stack.json calls"| S[new service]
+  A -.->|optional| R[(Redis)]
+  A -.->|optional| Q[[RabbitMQ]] -.-> K[worker]
 ```
 
 | | |
