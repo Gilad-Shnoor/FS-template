@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import type { z } from 'zod';
 import { ApiClientError, ApiErrorBody } from './errors';
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
@@ -71,7 +71,8 @@ export interface ClientOptions {
   fetch?: typeof fetch;
   /** Headers added to every request (evaluated per call), e.g. request-id propagation. */
   headers?: () => Record<string, string | undefined>;
-  credentials?: RequestCredentials;
+  /** RequestInit (not the DOM-only RequestCredentials) so this compiles for Node services too. */
+  credentials?: RequestInit['credentials'];
   /** Validate responses against the contract. Default true. */
   validateResponse?: boolean;
 }
