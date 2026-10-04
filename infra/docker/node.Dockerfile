@@ -3,7 +3,7 @@
 #   docker build -f infra/docker/node.Dockerfile --build-arg SERVICE=api --target dev .
 # Tilt builds the `dev` target and then live-syncs source files into the running container.
 
-ARG NODE_IMAGE=node:22-alpine
+ARG NODE_IMAGE=node:24-alpine
 
 # ---------------------------------------------------------------------------------------------
 # manifests: collect only package.json files (+ lockfile) so the install layer below is cached

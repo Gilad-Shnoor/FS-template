@@ -26,7 +26,7 @@ flowchart LR
 
 ## Quick start
 
-Prerequisites: Docker Desktop with **Kubernetes enabled** (kubeadm), Node 22+, and
+Prerequisites: Docker Desktop with **Kubernetes enabled** (kubeadm), Node 24+, and
 [Tilt](https://docs.tilt.dev/install.html). Port 80 must be free.
 
 ```bash

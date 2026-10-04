@@ -29,7 +29,7 @@ try {
 const check = (cond, okMsg, badMsg, fix) => (cond ? ok(okMsg) : bad(badMsg, fix));
 
 const [major] = process.versions.node.split('.').map(Number);
-check(major >= 22, `node ${process.versions.node}`, `node ${process.versions.node} (need >= 22)`, 'install Node 22 LTS (nvm use)');
+check(major >= 24, `node ${process.versions.node}`, `node ${process.versions.node} (need >= 24)`, 'install Node 24 LTS (nvm use)');
 
 check(existsSync(path.join(root, 'node_modules')), 'dependencies installed', 'node_modules missing', 'npm install');
 
