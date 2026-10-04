@@ -1,0 +1,5 @@
+# Generated files are compared byte-for-byte by `stack render --check`, and files are copied into
+# Linux containers, so keep LF everywhere regardless of core.autocrlf.
+* text=auto eol=lf
+*.png binary
+*.ico binary
