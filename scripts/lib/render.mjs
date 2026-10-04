@@ -485,7 +485,8 @@ export function stackGenTs(stack, svc) {
     '}',
     '',
     '/** Connect to everything stack.json says this service uses (db, redis, rabbitmq). */',
-    'export async function connectStack(config: z.output<typeof stackEnvSchema>, logger: Logger): Promise<StackResources> {',
+    // Nothing to connect (db: none, no add-ons): `_`-prefix the args so lint doesn't flag them.
+    `export async function connectStack(${hasDb || hasRedis || hasRabbit ? 'config' : '_config'}: z.output<typeof stackEnvSchema>, ${hasDb || hasRedis || hasRabbit ? 'logger' : '_logger'}: Logger): Promise<StackResources> {`,
     '  const readiness: Record<string, ReadinessCheck> = {};',
     '  const cleanup: Cleanup[] = [];',
   );

@@ -106,6 +106,9 @@ test('stack.gen.ts connects exactly what stack.json declares', () => {
   const notes = read(dir, 'apps/notes/src/stack.gen.ts');
   for (const mod of ['db', 'redis', 'rabbitmq']) assert.ok(!notes.includes(`@app/server-kit/${mod}`), mod);
   assert.ok(notes.includes('return { db: undefined, redis: undefined, broker: undefined, readiness, cleanup };'));
+  // Unused args would fail `npm run lint` in any repo with such a service.
+  assert.ok(notes.includes('connectStack(_config: '), 'unused connectStack args must be _-prefixed');
+  assert.ok(billing.includes('connectStack(config: '));
 });
 
 test('using an add-on wires it into an existing service', () => {
