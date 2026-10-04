@@ -124,16 +124,21 @@ export async function runDbCli(opts: DbCliOptions, argv = process.argv.slice(2))
   }
 }
 
+// Tilt applies a migration as soon as the file is saved, and Knex never re-runs an applied one.
+// A runnable placeholder would be applied on creation and your edits silently ignored, so the
+// generated file throws (inside Knex's transaction, so nothing is recorded) until it's written.
 const MIGRATION_TEMPLATE = `import type { Knex } from 'knex';
 
+// Delete both throws once up() and down() are written. Until then this migration refuses to run,
+// because Tilt applies migrations on save and Knex never re-runs one that's already applied.
+
 export async function up(knex: Knex): Promise<void> {
-  await knex.schema.createTable('example', (t) => {
-    t.uuid('id').primary().defaultTo(knex.fn.uuid());
-    t.timestamps(true, true);
-  });
+  throw new Error('Migration not written yet');
+  // e.g. await knex.schema.alterTable('todos', (t) => { t.text('notes'); });
 }
 
 export async function down(knex: Knex): Promise<void> {
-  await knex.schema.dropTable('example');
+  throw new Error('Migration not written yet');
+  // e.g. await knex.schema.alterTable('todos', (t) => { t.dropColumn('notes'); });
 }
 `;
