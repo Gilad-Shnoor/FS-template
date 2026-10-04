@@ -19,3 +19,21 @@ spec:
     allowedRoutes:
       namespaces:
         from: Same
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: ClientTrafficPolicy
+metadata:
+  name: gateway
+  namespace: fs-template
+  labels:
+    app.kubernetes.io/name: gateway
+    app.kubernetes.io/part-of: fs-template
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/managed-by: stack-render
+spec:
+  targetRefs:
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    name: gateway
+  headers:
+    requestID: PreserveOrGenerate

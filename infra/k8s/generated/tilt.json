@@ -32,6 +32,7 @@
   "addons": [],
   "networkingObjects": [
     "gateway:gateway:fs-template",
+    "gateway:clienttrafficpolicy:fs-template",
     "web:httproute:fs-template"
   ],
   "configObjects": [

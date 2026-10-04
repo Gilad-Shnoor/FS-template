@@ -211,6 +211,17 @@ function gateway(stack) {
         listeners: [{ name: 'http', protocol: 'HTTP', port: 80, allowedRoutes: { namespaces: { from: 'Same' } } }],
       },
     },
+    {
+      // Envoy's default replaces any x-request-id from the client with its own. Keep the caller's
+      // (so a request id you send shows up in every service's logs) and mint one only if absent.
+      apiVersion: 'gateway.envoyproxy.io/v1alpha1',
+      kind: 'ClientTrafficPolicy',
+      metadata: meta(stack, 'gateway', 'networking'),
+      spec: {
+        targetRefs: [{ group: 'gateway.networking.k8s.io', kind: 'Gateway', name: 'gateway' }],
+        headers: { requestID: 'PreserveOrGenerate' },
+      },
+    },
   ];
 }
 
@@ -489,6 +500,7 @@ function tiltPlan(stack) {
     addons,
     networkingObjects: [
       `gateway:gateway:${stack.namespace}`,
+      `gateway:clienttrafficpolicy:${stack.namespace}`,
       ...routeNames.map((n) => `${n}:httproute:${stack.namespace}`),
     ],
     configObjects: [
