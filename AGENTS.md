@@ -69,7 +69,7 @@ in-memory repo.
 
 - **Pod crash-looping:** `tilt logs <svc>`. A config error prints every bad var. If it's the
   `migrate` init container: `kubectl -n fs-template logs deploy/<svc> -c migrate`.
-- **Readiness failing:** `curl http://api.localhost/readyz` lists each dependency check with its error.
+- **Readiness failing:** `curl http://app.localhost/api/readyz` lists each dependency check with its error.
 - **500 in dev:** the response body includes the error message and a stack excerpt
   (`NODE_ENV!=production`). `ContractViolationError` means a handler returned data that doesn't
   match its contract, and its `details` list the exact fields.
@@ -86,4 +86,5 @@ in-memory repo.
 Better Auth, isolated in `apps/api/src/modules/auth/`. The rest of the code only sees
 `requireAuth` and `req.user`. Set `AUTH_ENABLED=false` in stack.json → api.env for a fixed dev user
 (useful for quick prototyping and tests). Its tables are created by a regular Knex migration. The
-web app reaches auth same-origin (`app.localhost/api/auth/*`), so cookies just work.
+API has no host of its own: the gateway serves it at `app.localhost/api/*` (stack.json `routes`),
+so auth and API calls are same-origin and cookies just work. Never add `/api/*` routes to the SPA.

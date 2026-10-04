@@ -61,7 +61,7 @@
         },
         "public": {
           "type": "string",
-          "description": "Hostname routed by the gateway, e.g. api.localhost. Omit for cluster-internal services."
+          "description": "Hostname routed by the gateway, e.g. app.localhost. Omit for cluster-internal services."
         },
         "routes": {
           "type": "object",

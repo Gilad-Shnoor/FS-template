@@ -26,16 +26,13 @@
       "deps": [
         "db-provision"
       ],
-      "links": [
-        "http://api.localhost"
-      ]
+      "links": []
     }
   ],
   "addons": [],
   "networkingObjects": [
     "gateway:gateway:fs-template",
-    "web:httproute:fs-template",
-    "api:httproute:fs-template"
+    "web:httproute:fs-template"
   ],
   "configObjects": [
     "fs-template:namespace",

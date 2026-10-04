@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:local": "VITE_API_PROXY=http://api.localhost vite",
+    "dev:local": "VITE_API_PROXY=http://app.localhost vite",
     "build": "tsr generate && tsc --noEmit && vite build",
     "preview": "vite preview",
     "routes": "tsr generate",

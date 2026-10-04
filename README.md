@@ -7,7 +7,6 @@ with hot reload. It's built for take-home assignments: fast to start, easy to ex
 ```mermaid
 flowchart LR
   B[Browser] -->|app.localhost| G[Gateway<br/>Envoy, Gateway API]
-  B -->|api.localhost| G
   G -->|/| W[web<br/>Vite + React]
   G -->|/api| A[api<br/>Express]
   A --> P[(Postgres<br/>schema per service)]
@@ -37,7 +36,7 @@ npm run cluster:setup   # one-time: installs Envoy Gateway into the cluster
 npm run dev             # tilt up: builds, deploys, live-reloads
 ```
 
-Open http://app.localhost (web) or http://api.localhost/readyz (API). The Tilt UI is at
+Open http://app.localhost. The API is served on the same host under `/api` (try http://app.localhost/api/readyz). The Tilt UI is at
 http://localhost:10350. Stop with `Ctrl+C` then `npm run down`.
 
 ## Starting an assignment
@@ -89,7 +88,7 @@ npm run db:grant -- billing reports read              # reports may SELECT from 
 |---|---|
 | Tilt for the dev loop | Live-syncs files into running pods (no rebuilds), with one UI and CLI for logs and status |
 | Gateway API + Envoy Gateway | ingress-nginx was retired by Kubernetes in March 2026; the Gateway API is the successor to Ingress |
-| Same-origin `/api` on `app.localhost` | `app.localhost` and `api.localhost` are different *sites*, so session cookies wouldn't be sent cross-host. Routing `/api` through the web host avoids CORS and cookie issues entirely |
+| API under `app.localhost/api`, no separate API host | `app.localhost` and `api.localhost` would be different *sites*, so `SameSite=Lax` session cookies wouldn't be sent cross-host without HTTPS. One origin means first-party cookies and no CORS. Internal services stay cluster-only |
 | Schema per service (not DB per service) | Real isolation via roles, while cross-service access stays a simple `GRANT` |
 | Zod contracts as the single source of truth | Request/response validation, client types and server types can't drift |
 | `stack.json` + generators instead of hand-written YAML | Adding a service or add-on is one command, and the topology is readable in one file |

@@ -3,18 +3,23 @@
   "project": "fs-template",
   "kubeContext": "docker-desktop",
   "addons": {
-    "redis": { "enabled": false },
-    "rabbitmq": { "enabled": false }
+    "redis": {
+      "enabled": false
+    },
+    "rabbitmq": {
+      "enabled": false
+    }
   },
   "services": {
     "web": {
       "template": "web",
       "public": "app.localhost",
-      "routes": { "/api": "api" }
+      "routes": {
+        "/api": "api"
+      }
     },
     "api": {
       "template": "http",
-      "public": "api.localhost",
       "db": "own",
       "uses": [],
       "calls": [],
@@ -23,8 +28,7 @@
         "AUTH_ENABLED": "true",
         "BETTER_AUTH_URL": "http://app.localhost",
         "BETTER_AUTH_SECRET": "local-dev-only-secret-change-me-0123456789",
-        "TRUSTED_ORIGINS": "http://app.localhost,http://api.localhost",
-        "CORS_ORIGINS": "http://app.localhost"
+        "TRUSTED_ORIGINS": "http://app.localhost"
       }
     }
   }
