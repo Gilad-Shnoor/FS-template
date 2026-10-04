@@ -523,7 +523,7 @@ export function renderAll(stack, root) {
   const patches = existsSync(patchDir)
     ? readdirSync(patchDir).filter((f) => /\.ya?ml$/.test(f)).sort()
     : [];
-  const resources = Object.keys(files).map((f) => path.relative('infra/k8s', f)).sort();
+  const resources = Object.keys(files).map((f) => path.posix.relative('infra/k8s', f)).sort();
   files['infra/k8s/kustomization.yaml'] = toYamlDocs(
     [
       {
