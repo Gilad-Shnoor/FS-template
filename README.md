@@ -17,12 +17,12 @@ flowchart LR
 
 | | |
 |---|---|
-| Frontend | React 19, TanStack Router (file-based) + Query, Tailwind v4, Vite |
-| Backend | Express 5, helmet, CORS, compression, rate limiting, pino JSON logs, request ids, graceful shutdown |
-| Data | Postgres 17, Knex migrations/seeds, one schema + role per service |
+| Frontend | React 19, TanStack Router (file-based) + Query, Tailwind v4, Vite 8 |
+| Backend | Node 24, Express 5, helmet, CORS, compression, rate limiting, pino JSON logs, request ids, graceful shutdown |
+| Data | Postgres 18, Knex migrations/seeds, one schema + role per service |
 | Contracts | Zod schemas shared by server and client, typed fetch client, typed events |
 | Auth | Better Auth (email + password), isolated module, toggle with one env var |
-| Infra | Docker Desktop Kubernetes, Gateway API (Envoy Gateway), Kustomize, Tilt |
+| Infra | Docker Desktop Kubernetes, Gateway API (Envoy Gateway), Kustomize, Tilt, GitHub Actions CI |
 
 ## Quick start
 
@@ -37,7 +37,20 @@ npm run dev             # tilt up: builds, deploys, live-reloads
 ```
 
 Open http://app.localhost. The API is served on the same host under `/api` (try http://app.localhost/api/readyz). The Tilt UI is at
-http://localhost:10350. Stop with `Ctrl+C` then `npm run down`.
+http://localhost:10350. Then check the whole stack end to end with `npm run smoke`.
+
+Stop with `Ctrl+C`, then `npm run down` (removes the workloads, keeps the database volume). `npm run reset`
+deletes the namespace **including the database**; use it to start from scratch.
+
+Good to know:
+
+- **Windows:** the Tilt installer puts `tilt.exe` in `%USERPROFILE%\bin` but doesn't add it to `PATH`.
+  Browsers resolve `*.localhost` themselves, but CLI tools may not: `npm run doctor` tells you what to add
+  to the hosts file (`npm run smoke` doesn't need it).
+- **Upgrading from Postgres 17:** if `postgres-0` is stuck in `Init:Error` (`check-data-layout`), your
+  volume predates the Postgres 18 upgrade. Run `npm run reset` once (deletes local DB data).
+- **npm 11 install scripts:** dependencies' install scripts only run when approved in `package.json` →
+  `allowScripts`. If a new dependency needs one, run `npm approve-scripts <pkg>`.
 
 ## Starting an assignment
 
@@ -45,6 +58,22 @@ http://localhost:10350. Stop with `Ctrl+C` then `npm run down`.
 2. Replace the todos example: contract in `packages/contracts/src/api`, module in
    `apps/api/src/modules/todos`, migration, and `apps/web/src/routes/_authed/todos.tsx`.
 3. Need more? `npm run addon -- redis`, `npm run new:service -- billing --consumers api`, etc.
+
+## Dev loop
+
+- **Hot reload:** saving a file in `apps/` or `packages/` live-syncs it into the pods (tsx restarts the
+  service, Vite hot-updates the browser). Only `package.json` / lockfile changes rebuild images.
+- **Migrations:** `npm run db:make -w apps/api -- add_tags` creates a migration that **refuses to run until
+  you write it** (Tilt applies migrations as soon as they're saved, and Knex never re-runs an applied one).
+  Write `up()`/`down()`, save, and the `api-migrate` resource applies it. They also run in an init
+  container on every rollout.
+- **Seeds:** `npm run db:seed` (sample todos for the dev user; set `AUTH_ENABLED=false` in `stack.json`).
+- **Debugging:** attach a Node debugger to `localhost:9229` (api; other services 9230+). `.vscode/launch.json`
+  has a ready config. Database: `npm run db:shell`.
+- **Tracing:** every response carries `x-request-id` (send your own and the gateway keeps it); grep for it in
+  `tilt logs` to follow a request across services and queue consumers.
+
+See [AGENTS.md](AGENTS.md) for the full command list and a debugging playbook.
 
 ## How it fits together
 
@@ -80,7 +109,8 @@ npm run stack -- remove-service billing               # remove from stack.json (
 ### Service communication
 
 - **Sync:** Kubernetes DNS (`http://billing:3000`) through a typed client generated from the
-  callee's contract. `x-request-id` is propagated, so one id traces a request through every service.
+  callee's contract. `x-request-id` is propagated (and kept from the client at the gateway), so one
+  id traces a request through every service.
 - **Async:** RabbitMQ topic exchange. Events are Zod schemas in `contracts`, validated on publish and consume.
 - **Database:** each service owns a schema and role. Cross-service access is opt-in via `grants`,
   rendered as declarative `GRANT`/`REVOKE` statements.
@@ -96,14 +126,26 @@ npm run stack -- remove-service billing               # remove from stack.json (
 | Zod contracts as the single source of truth | Request/response validation, client types and server types can't drift |
 | `stack.json` + generators instead of hand-written YAML | Adding a service or add-on is one command, and the topology is readable in one file |
 | Migrations in an init container | Run on every rollout; Knex's lock keeps it safe with multiple replicas |
+| Generated `connectStack()` per service | Declaring an add-on in `stack.json` is enough to get a client, a `/readyz` check and clean shutdown; using an undeclared one is a type error |
 
 ## Testing & quality
 
 ```bash
 npm run check     # render --check, eslint (with package-boundary rules), tsc, vitest, script tests
+npm run smoke     # end to end against the running stack: gateway, auth, todo CRUD, errors, request ids
 ```
+
+CI (`.github/workflows/ci.yml`) runs `npm ci` and the same checks as `npm run check` on pushes to `main` and on pull requests.
 
 ## Production images
 
-`infra/docker/node.Dockerfile` also has `prod-node` (bundled with tsup, prod deps only, non-root)
-and `prod-web` (static build on nginx) targets. Tilt only uses `dev`.
+`infra/docker/node.Dockerfile` also has production targets; Tilt only uses `dev`.
+
+- `prod-node`: the service bundled with tsup (workspace packages inlined, npm dependencies installed
+  with `--omit=dev`), running as a non-root user on `node:24-alpine`.
+- `prod-web`: the static Vite build on `nginx:1.30-alpine`, with SPA fallback to `index.html`.
+
+```bash
+docker build -f infra/docker/node.Dockerfile --build-arg SERVICE=api --target prod-node .
+docker build -f infra/docker/node.Dockerfile --build-arg SERVICE=web --target prod-web .
+```

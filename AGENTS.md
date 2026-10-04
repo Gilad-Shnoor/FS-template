@@ -38,7 +38,7 @@ Tiltfile                    dev loop; reads infra/k8s/generated/tilt.json
 | Enable add-on / let a service use it | `npm run addon -- redis` then `npm run stack -- use api redis` (`connectStack()` then returns `redis`) |
 | Service A calls B | `npm run link -- a b` |
 | DB access across schemas | `npm run db:grant -- billing reports read` |
-| New migration | `npm run db:make -w apps/api -- add_tags` (runs automatically on save via Tilt) |
+| New migration | `npm run db:make -w apps/api -- add_tags`, write `up()`/`down()` (the draft refuses to run until then), save: Tilt applies it |
 | Migrate / seed / psql | `npm run db:migrate` · `npm run db:seed` · `npm run db:shell` |
 | Verify before finishing | `npm run check` (render --check, lint, typecheck, tests) |
 | End-to-end check of the running stack | `npm run smoke` (gateway, auth, todo CRUD, errors, request ids) |
