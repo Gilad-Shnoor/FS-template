@@ -11,7 +11,7 @@ export default defineConfig({
   clean: true,
   sourcemap: true,
   noExternal: [/^@app\//],
-  // Without this, tsup only externalizes deps listed in THIS package.json, so deps of
-  // @app/server-kit (pino, express…) got inlined and CJS requires broke in the ESM bundle.
+  // tsup otherwise only externalizes deps listed in THIS package.json, so deps of
+  // @app/server-kit (pino, express…) would be inlined and their CJS requires break the ESM bundle.
   skipNodeModulesBundle: true,
 });

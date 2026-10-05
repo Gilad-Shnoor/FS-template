@@ -7,8 +7,8 @@
 
 version_settings(constraint='>=0.33.0')
 update_settings(max_parallel_updates=4, k8s_upsert_timeout_secs=180)
-# Every Secret here holds a fixed dev-only value (e.g. POSTGRES_USER=postgres). Scrubbing them
-# rewrote every occurrence of "postgres" in the logs (pod names, images) to "[redacted secret …]".
+# Every Secret here holds a fixed dev-only value (e.g. POSTGRES_USER=postgres). Scrubbing would
+# replace every occurrence of "postgres" in the logs (pod names, images) with "[redacted secret …]".
 secret_settings(disable_scrub=True)
 
 # 1. Render manifests from stack.json (fails loudly with a readable list if stack.json is invalid).
@@ -47,8 +47,8 @@ for svc in plan['services']:
         dockerfile='infra/docker/node.Dockerfile',
         target='dev',
         build_args={'SERVICE': name},
-        # Only what the image needs. Without this, editing any root file (stack.json, eslint config,
-        # an editor's temp file) matched no sync rule and forced a full rebuild of every image.
+        # Only what the image needs, so editing a root file (stack.json, eslint config, an editor's
+        # temp file) doesn't fall outside the sync rules and force a full rebuild of every image.
         only=['apps', 'packages', 'package.json', 'package-lock.json', 'tsconfig.base.json'],
         ignore=ignore,
         live_update=[

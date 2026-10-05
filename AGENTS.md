@@ -82,8 +82,6 @@ in-memory repo. `npm run smoke` needs the stack up (`npm run dev` or `tilt ci`) 
 - **Gateway / hostnames:** `kubectl -n fs-template get gateway,httproute`. Port 80 must be free.
   If `*.localhost` doesn't resolve for CLI tools, `npm run doctor` tells you what to add to the hosts file.
 - **Stuck state:** `npm run reset` (deletes the namespace, including DB data), then `npm run dev`.
-- **postgres stuck in `Init:Error` (`check-data-layout`):** the volume holds data from before the
-  Postgres 18 upgrade, which 18 can't use. `npm run reset`, then `npm run dev`.
 - **Removing a service:** `npm run stack -- remove-service billing` drops it from stack.json (Tilt
   deletes its workloads); then delete `apps/billing` and `packages/contracts/src/billing`, and run
   `npm install`. Its Postgres role and data are **kept**: db-provision only creates and grants,

@@ -58,16 +58,6 @@ spec:
         app.kubernetes.io/component: database
         app.kubernetes.io/managed-by: stack-render
     spec:
-      initContainers:
-      - name: check-data-layout
-        image: postgres:18-alpine
-        command:
-        - sh
-        - "-c"
-        - "if [ -s /var/lib/postgresql/pgdata/PG_VERSION ]; then echo \"Found Postgres $(cat /var/lib/postgresql/pgdata/PG_VERSION) data from the old layout. Run: npm run reset (deletes local DB data), then npm run dev.\"; exit 1; fi"
-        volumeMounts:
-        - name: data
-          mountPath: /var/lib/postgresql
       containers:
       - name: postgres
         image: postgres:18-alpine

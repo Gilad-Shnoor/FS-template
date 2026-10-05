@@ -47,10 +47,8 @@ Good to know:
 - **Windows:** the Tilt installer puts `tilt.exe` in `%USERPROFILE%\bin` but doesn't add it to `PATH`.
   Browsers resolve `*.localhost` themselves, but CLI tools may not: `npm run doctor` tells you what to add
   to the hosts file (`npm run smoke` doesn't need it).
-- **Upgrading from Postgres 17:** if `postgres-0` is stuck in `Init:Error` (`check-data-layout`), your
-  volume predates the Postgres 18 upgrade. Run `npm run reset` once (deletes local DB data).
-- **npm 11 install scripts:** dependencies' install scripts only run when approved in `package.json` →
-  `allowScripts`. If a new dependency needs one, run `npm approve-scripts <pkg>`.
+- **Dependency install scripts** only run when approved in `package.json` → `allowScripts`. If a new
+  dependency needs one, run `npm approve-scripts <pkg>`.
 
 ## Starting an assignment
 
