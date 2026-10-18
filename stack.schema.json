@@ -81,8 +81,13 @@
                 "mode": { "enum": ["own", "shared", "none"] },
                 "grants": {
                   "type": "object",
-                  "description": "Other services allowed into this service's schema.",
-                  "additionalProperties": { "enum": ["read", "readwrite"] }
+                  "description": "Other services allowed into this service's schema, e.g. { \"reports\": [\"read\"] }. read = SELECT, write = INSERT (+ sequences), modify = UPDATE, delete = DELETE; modify and delete require read.",
+                  "additionalProperties": {
+                    "type": "array",
+                    "items": { "enum": ["read", "write", "modify", "delete"] },
+                    "minItems": 1,
+                    "uniqueItems": true
+                  }
                 }
               }
             }

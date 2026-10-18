@@ -1,7 +1,7 @@
 // `new-service` generator: copies a template into apps/<name>, writes its contract, updates stack.json.
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { DB_MODES, StackError, TEMPLATES, loadRawStack, normalizeStack, saveRawStack, toCamel, toConst, toPascal, toPgName } from './stack.mjs';
+import { DB_MODES, StackError, TEMPLATES, loadRawStack, normalizeStack, saveRawStack, sortGrantLevels, toCamel, toConst, toPascal, toPgName } from './stack.mjs';
 
 /** Keep or drop `// @if flag` … `// @endif` blocks. Supports `!flag`. Not nestable (keep templates simple). */
 export function preprocess(source, flags) {
@@ -165,13 +165,14 @@ export function setLink(root, from, to, on) {
   saveRawStack(root, raw);
 }
 
-export function setGrant(root, owner, grantee, level) {
+/** levels: an array of GRANT_LEVELS, or 'none' to remove the grant. Validated before stack.json is written. */
+export function setGrant(root, owner, grantee, levels) {
   const raw = loadRawStack(root);
   const s = raw.services?.[owner];
   if (!s) throw new StackError(`Unknown service "${owner}"`);
-  const db = typeof s.db === 'string' || !s.db ? { mode: s.db ?? 'none', grants: {} } : { grants: {}, ...s.db };
-  if (level === 'none') delete db.grants[grantee];
-  else db.grants[grantee] = level;
+  const db = typeof s.db === 'string' || !s.db ? { mode: s.db ?? 'none', grants: {} } : { ...s.db, grants: { ...s.db.grants } };
+  if (levels === 'none') delete db.grants[grantee];
+  else db.grants[grantee] = Array.isArray(levels) ? sortGrantLevels(levels) : levels;
   s.db = Object.keys(db.grants).length ? db : db.mode;
   normalizeStack(raw);
   saveRawStack(root, raw);

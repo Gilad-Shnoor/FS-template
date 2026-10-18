@@ -15,7 +15,36 @@ export const ADDONS = {
 };
 
 export const DB_MODES = ['own', 'shared', 'none'];
-export const GRANT_LEVELS = ['read', 'readwrite'];
+/** Cross-schema grant levels, in their canonical order: SELECT, INSERT, UPDATE, DELETE (see render). */
+export const GRANT_LEVELS = ['read', 'write', 'modify', 'delete'];
+
+/** Problems with one grant's level list (empty = valid). */
+function grantErrors(levels) {
+  if (!Array.isArray(levels)) return [`must be an array of ${GRANT_LEVELS.join(' | ')}`];
+  if (!levels.length) return [`must list at least one level (${GRANT_LEVELS.join(' | ')})`];
+  const errors = [];
+  for (const [i, level] of levels.entries()) {
+    if (!GRANT_LEVELS.includes(level)) errors.push(`unknown level "${level}" (known: ${GRANT_LEVELS.join(' | ')})`);
+    else if (levels.indexOf(level) !== i) errors.push(`duplicate level "${level}"`);
+  }
+  if (!levels.includes('read') && levels.some((l) => l === 'modify' || l === 'delete')) {
+    errors.push('modify/delete require read (Postgres needs SELECT for WHERE and RETURNING)');
+  }
+  return errors;
+}
+
+/** Levels in canonical order, so stack.json and the rendered SQL don't depend on how they were listed. */
+export const sortGrantLevels = (levels) =>
+  [...levels].sort((a, b) => GRANT_LEVELS.indexOf(a) - GRANT_LEVELS.indexOf(b));
+
+/** CLI form: "read,modify" → ['read', 'modify'], or 'none' (remove the grant). */
+export function parseGrantLevels(arg) {
+  if (arg?.trim() === 'none') return 'none';
+  const levels = String(arg ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+  const errors = grantErrors(levels);
+  if (errors.length) throw new StackError(`grant levels "${arg}": ${errors.join('; ')}`);
+  return sortGrantLevels(levels);
+}
 
 const NAME_RE = /^[a-z][a-z0-9-]{0,30}[a-z0-9]$/;
 
@@ -67,7 +96,7 @@ export function normalizeStack(raw) {
       continue;
     }
     const dbRaw = s.db ?? 'none';
-    const db = typeof dbRaw === 'string' ? { mode: dbRaw, grants: {} } : { mode: dbRaw.mode ?? 'own', grants: dbRaw.grants ?? {} };
+    const db = typeof dbRaw === 'string' ? { mode: dbRaw, grants: {} } : { mode: dbRaw.mode ?? 'own', grants: { ...dbRaw.grants } };
     if (!DB_MODES.includes(db.mode)) errors.push(`${where}.db: mode must be one of ${DB_MODES.join(', ')}`);
     if (template === 'web' && db.mode !== 'none') errors.push(`${where}.db: web services can't have a database`);
 
@@ -114,9 +143,11 @@ export function normalizeStack(raw) {
       if (hosts.has(s.public)) errors.push(`${where}.public: host "${s.public}" already used by ${hosts.get(s.public)}`);
       hosts.set(s.public, s.name);
     }
-    for (const [grantee, level] of Object.entries(s.db.grants)) {
+    for (const [grantee, levels] of Object.entries(s.db.grants)) {
       if (s.db.mode !== 'own') errors.push(`${where}.db.grants: grants only apply to db mode "own"`);
-      if (!GRANT_LEVELS.includes(level)) errors.push(`${where}.db.grants.${grantee}: must be ${GRANT_LEVELS.join(' | ')}`);
+      const levelErrors = grantErrors(levels);
+      for (const e of levelErrors) errors.push(`${where}.db.grants.${grantee}: ${e}`);
+      if (!levelErrors.length) s.db.grants[grantee] = sortGrantLevels(levels);
       const g = services[grantee];
       if (!g) errors.push(`${where}.db.grants: unknown service "${grantee}"`);
       else if (g.db.mode === 'none') errors.push(`${where}.db.grants: "${grantee}" has db "none", so it has no role to grant to`);

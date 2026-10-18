@@ -7,9 +7,10 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { newService, removeService, setAddon, setGrant, setLink, setUses } from './lib/generate.mjs';
 import { renderAll, writeRendered } from './lib/render.mjs';
-import { ADDONS, GRANT_LEVELS, StackError, loadStack } from './lib/stack.mjs';
+import { ADDONS, GRANT_LEVELS, StackError, loadStack, parseGrantLevels } from './lib/stack.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const GRANT_USAGE = `Usage: grant <owner> <grantee> <levels|none>   (levels: comma list of ${GRANT_LEVELS.join(', ')})`;
 
 const HELP = `
 Usage: npm run stack -- <command> [args]        (or the npm shortcuts in parentheses)
@@ -28,7 +29,9 @@ Usage: npm run stack -- <command> [args]        (or the npm shortcuts in parenth
   addon <redis|rabbitmq> [--disable]          Enable/disable a namespace-wide add-on    (addon)
   use <service> <addon> [--remove]            Let a service use an add-on (injects its env)
   link <from> <to> [--remove]                 <from> calls <to> over HTTP (typed client) (link)
-  grant <owner> <grantee> <read|readwrite|none>  DB access to <owner>'s schema          (db:grant)
+  grant <owner> <grantee> <levels|none>       DB access to <owner>'s schema             (db:grant)
+      levels: comma list of ${GRANT_LEVELS.join(', ')} (SELECT, INSERT, UPDATE, DELETE);
+      modify and delete require read. e.g. grant billing reports read,modify
 
   migrate [service]   Run pending migrations in the running pod(s)                      (db:migrate)
   seed [service]      Run seeds in the running pod(s)                                   (db:seed)
@@ -79,7 +82,7 @@ function list() {
       `db:${s.db.mode}`,
       s.uses.length && `uses:${s.uses.join(',')}`,
       s.calls.length && `calls:${s.calls.join(',')}`,
-      Object.keys(s.db.grants).length && `grants:${Object.entries(s.db.grants).map(([g, l]) => `${g}=${l}`).join(',')}`,
+      Object.keys(s.db.grants).length && `grants:${Object.entries(s.db.grants).map(([g, l]) => `${g}=${l.join('+')}`).join(',')}`,
       Object.keys(s.routes).length && `routes:${Object.entries(s.routes).map(([p, t]) => `${p}→${t}`).join(',')}`,
       s.replicas !== 1 && `replicas:${s.replicas}`,
       s.debugPort && `debug:localhost:${s.debugPort}`,
@@ -170,16 +173,15 @@ Next steps:
       return;
     }
     case 'grant': {
-      const [owner, grantee, level] = positionals;
-      if (!owner || !grantee || ![...GRANT_LEVELS, 'none'].includes(level)) {
-        throw new StackError('Usage: grant <owner> <grantee> <read|readwrite|none>');
-      }
-      setGrant(root, owner, grantee, level);
+      const [owner, grantee, arg] = positionals;
+      if (!owner || !grantee || !arg) throw new StackError(GRANT_USAGE);
+      const levels = parseGrantLevels(arg);
+      setGrant(root, owner, grantee, levels);
       render();
       const schema = `"${owner.replace(/-/g, '_')}"`;
       console.log(
         `\nTilt re-runs db-provision automatically. ` +
-          (level === 'none' ? `${grantee} can no longer query ${schema}.` : `${grantee} can now ${level === 'read' ? 'read' : 'read and write'} ${schema}.<table>.`),
+          (levels === 'none' ? `${grantee} can no longer query ${schema}.` : `${grantee} can now ${levels.join(', ')} ${schema}.<table>.`),
       );
       return;
     }

@@ -86,6 +86,9 @@ function postgres(stack) {
   ];
 }
 
+/** Table privilege per stack.json grant level (levels arrive in canonical order, see stack.mjs). */
+const GRANT_PRIVILEGES = { read: 'SELECT', write: 'INSERT', modify: 'UPDATE', delete: 'DELETE' };
+
 /** Idempotent, declarative SQL: one role + schema per `own` service, shared group for `shared`, grants. */
 export function provisionSql(stack) {
   const lines = ['-- GENERATED from stack.json. Re-run safely: every statement is idempotent.', '\\set ON_ERROR_STOP on', ''];
@@ -145,15 +148,16 @@ export function provisionSql(stack) {
         `REVOKE USAGE ON SCHEMA "${schema}" FROM "${r}";`,
       );
     }
-    for (const [grantee, level] of Object.entries(owner.db.grants)) {
+    for (const [grantee, levels] of Object.entries(owner.db.grants)) {
       const r = toPgName(grantee);
-      const tablePrivs = level === 'readwrite' ? 'SELECT, INSERT, UPDATE, DELETE' : 'SELECT';
+      const tablePrivs = levels.map((l) => GRANT_PRIVILEGES[l]).join(', ');
       lines.push(
         `GRANT USAGE ON SCHEMA "${schema}" TO "${r}";`,
         `GRANT ${tablePrivs} ON ALL TABLES IN SCHEMA "${schema}" TO "${r}";`,
         `ALTER DEFAULT PRIVILEGES FOR ROLE "${schema}" IN SCHEMA "${schema}" GRANT ${tablePrivs} ON TABLES TO "${r}";`,
       );
-      if (level === 'readwrite') {
+      // INSERTs need the owner's sequences for serial/identity defaults.
+      if (levels.includes('write')) {
         lines.push(
           `GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA "${schema}" TO "${r}";`,
           `ALTER DEFAULT PRIVILEGES FOR ROLE "${schema}" IN SCHEMA "${schema}" GRANT USAGE, SELECT ON SEQUENCES TO "${r}";`,

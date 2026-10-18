@@ -38,7 +38,7 @@ vitest.config.ts            one test run for every workspace; vitest.global-setu
 | New service | `npm run new:service -- billing --consumers api` |
 | Enable add-on / let a service use it | `npm run addon -- redis` then `npm run stack -- use api redis` (`connectStack()` then returns `redis`) |
 | Service A calls B | `npm run link -- a b` |
-| DB access across schemas | `npm run db:grant -- billing reports read` |
+| DB access across schemas | `npm run db:grant -- billing reports read` (levels: `read,write,modify,delete`; modify/delete need read; `none` removes) |
 | New migration | `npm run db:make -w apps/api -- add_tags`, write `up()`/`down()` (the draft refuses to run until then), save: Tilt applies it |
 | Migrate / seed / psql | `npm run db:migrate` · `npm run db:seed` · `npm run db:shell` |
 | Run tests (all / one file) | `npm test` · `npx vitest run apps/api/src/app.test.ts` |
