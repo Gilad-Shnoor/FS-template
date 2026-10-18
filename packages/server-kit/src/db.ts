@@ -51,6 +51,23 @@ export interface DbCliOptions {
   connect: () => DbConnection;
 }
 
+// TS sources (dev via tsx, tests via vitest) or compiled JS (prod build).
+const sourceExt = () => (import.meta.url.endsWith('.ts') ? 'ts' : 'js');
+
+/** Where a service's migrations live and where Knex records them. Shared by the CLI and tests. */
+export function migrationConfig(opts: { root: string; service: string; schema: string }): Knex.MigratorConfig {
+  const ext = sourceExt();
+  return {
+    directory: path.join(opts.root, 'migrations'),
+    loadExtensions: [`.${ext}`],
+    extension: ext,
+    // Own schema: keep the bookkeeping table inside it. Shared schema: one table per service.
+    ...(opts.schema === 'public'
+      ? { tableName: `knex_migrations_${opts.service.replace(/-/g, '_')}` }
+      : { schemaName: opts.schema, tableName: 'knex_migrations' }),
+  };
+}
+
 /**
  * Tiny migration CLI used by every service's `db:*` scripts:
  *   latest | rollback | status | make <name> | seed
@@ -76,16 +93,8 @@ export async function runDbCli(opts: DbCliOptions, argv = process.argv.slice(2))
   }
 
   const { db, service, schema } = opts.connect();
-  const ext = import.meta.url.endsWith('.ts') ? 'ts' : 'js';
-  const migrations: Knex.MigratorConfig = {
-    directory: path.join(opts.root, 'migrations'),
-    loadExtensions: [`.${ext}`],
-    extension: ext,
-    // Own schema: keep the bookkeeping table inside it. Shared schema: one table per service.
-    ...(schema === 'public'
-      ? { tableName: `knex_migrations_${service.replace(/-/g, '_')}` }
-      : { schemaName: schema, tableName: 'knex_migrations' }),
-  };
+  const ext = sourceExt();
+  const migrations = migrationConfig({ root: opts.root, service, schema });
 
   try {
     switch (command) {

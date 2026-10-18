@@ -9,3 +9,4 @@ coverage/
 .tilt-dev/
 apps/*/src/routeTree.gen.ts
 .tanstack/
+.tmp/

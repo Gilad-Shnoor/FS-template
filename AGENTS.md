@@ -15,12 +15,13 @@ apps/web                    Vite + React + TanStack Router/Query + Tailwind (SPA
 apps/api                    Express API: src/modules/<feature>/ (routes + repo), migrations/, seeds/
 apps/<svc>/src/stack.gen.ts GENERATED: env schema, connectStack() (db/redis/broker + readiness), typed clients
 packages/contracts          ISOMORPHIC Zod schemas, route + event definitions, typed fetch client
-packages/server-kit         BACKEND-ONLY: config, logger, createApp (middleware), implement(), db, redis, rabbitmq
+packages/server-kit         BACKEND-ONLY: config, logger, createApp (middleware), implement(), db, redis, rabbitmq, testing
 infra/k8s/generated         GENERATED manifests (never edit) — customize via infra/k8s/patches/
 infra/docker/node.Dockerfile  one Dockerfile for every Node service (targets: dev, prod-node, prod-web)
 scripts/stack.mjs           stack CLI (render, new-service, addon, link, grant, migrate…)
 templates/                  what new-service copies
 Tiltfile                    dev loop; reads infra/k8s/generated/tilt.json
+vitest.config.ts            one test run for every workspace; vitest.global-setup.ts starts its containers
 ```
 
 ## Commands
@@ -40,11 +41,18 @@ Tiltfile                    dev loop; reads infra/k8s/generated/tilt.json
 | DB access across schemas | `npm run db:grant -- billing reports read` |
 | New migration | `npm run db:make -w apps/api -- add_tags`, write `up()`/`down()` (the draft refuses to run until then), save: Tilt applies it |
 | Migrate / seed / psql | `npm run db:migrate` · `npm run db:seed` · `npm run db:shell` |
+| Run tests (all / one file) | `npm test` · `npx vitest run apps/api/src/app.test.ts` |
 | Verify before finishing | `npm run check` (render --check, lint, typecheck, tests) |
 | End-to-end check of the running stack | `npm run smoke` (gateway, auth, todo CRUD, errors, request ids) |
 
-Unit tests don't need the cluster (`npm test`). The API tests run with auth disabled and an
-in-memory repo. `npm run smoke` needs the stack up (`npm run dev` or `tilt ci`) with the default
+Tests need Docker, not the cluster. `npm test` is one Vitest run over every workspace: its global
+setup starts fresh Postgres, Redis and RabbitMQ containers (same images as the cluster), provisions
+each service's role and schema from stack.json, runs its migrations, and removes the containers at
+the end. In a test, `loadConfig(envSchema, serviceEnv('<svc>'))` (`@app/server-kit/testing-env`)
+gives the service its cluster env pointed at those containers. Containers are shared by every test
+file in the run, so use unique data (random user ids, key prefixes, queue names), not fixed rows.
+The API tests run with auth disabled against the real database. New services come with a test
+that checks they connect to everything stack.json gives them. `npm run smoke` needs the stack up (`npm run dev` or `tilt ci`) with the default
 `AUTH_ENABLED=true`; it resolves `*.localhost` itself, so no hosts-file edit is needed.
 
 ## Rules

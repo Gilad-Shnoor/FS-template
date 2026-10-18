@@ -1,7 +1,7 @@
 import type { Todo } from '@app/contracts/api';
 import type { Knex } from 'knex';
 
-/** Persistence port. Routes depend on this interface; tests use the in-memory implementation. */
+/** Persistence port. Routes depend on this interface, not on Knex. */
 export interface TodoRepo {
   list(userId: string, filter?: { completed?: boolean }): Promise<Todo[]>;
   create(userId: string, title: string): Promise<Todo>;
@@ -47,35 +47,6 @@ export function createKnexTodoRepo(db: Knex): TodoRepo {
     },
     async remove(userId, id) {
       return (await table().where({ id, user_id: userId }).delete()) > 0;
-    },
-  };
-}
-
-export function createMemoryTodoRepo(): TodoRepo {
-  const rows = new Map<string, Todo & { userId: string }>();
-  const strip = ({ userId: _u, ...t }: Todo & { userId: string }): Todo => t;
-  return {
-    async list(userId, filter = {}) {
-      return [...rows.values()]
-        .filter((t) => t.userId === userId && (filter.completed === undefined || t.completed === filter.completed))
-        .reverse()
-        .map(strip);
-    },
-    async create(userId, title) {
-      const now = new Date().toISOString();
-      const todo = { id: crypto.randomUUID(), userId, title, completed: false, createdAt: now, updatedAt: now };
-      rows.set(todo.id, todo);
-      return strip(todo);
-    },
-    async update(userId, id, patch) {
-      const todo = rows.get(id);
-      if (!todo || todo.userId !== userId) return null;
-      Object.assign(todo, patch, { updatedAt: new Date().toISOString() });
-      return strip(todo);
-    },
-    async remove(userId, id) {
-      const todo = rows.get(id);
-      return todo?.userId === userId ? rows.delete(id) : false;
     },
   };
 }

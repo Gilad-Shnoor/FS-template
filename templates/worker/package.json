@@ -8,7 +8,6 @@
     "start": "node dist/src/index.js",
     "build": "tsup",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests",
     "db:migrate": "tsx src/db/cli.ts latest",
     "db:rollback": "tsx src/db/cli.ts rollback",
     "db:status": "tsx src/db/cli.ts status",

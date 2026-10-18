@@ -111,6 +111,21 @@ test('stack.gen.ts connects exactly what stack.json declares', () => {
   assert.ok(billing.includes('connectStack(config: '));
 });
 
+test('new services come with tests that the root vitest run picks up', () => {
+  const dir = sandbox();
+  newService(dir, 'billing', { db: 'own', uses: 'redis,rabbitmq' });
+  newService(dir, 'jobs', { template: 'worker' });
+
+  for (const [name, file] of [['billing', 'src/app.test.ts'], ['jobs', 'src/handlers.test.ts']]) {
+    const src = read(dir, `apps/${name}/${file}`);
+    assert.doesNotMatch(src, /__\w+__|@if|@endif/, `${name}: unresolved template markers`);
+    assert.ok(src.includes(`serviceEnv('${name}')`), `${name}: test should use its own service env`);
+    // No per-service test script: one root `vitest run` covers every workspace.
+    assert.equal(JSON.parse(read(dir, `apps/${name}/package.json`)).scripts.test, undefined);
+  }
+  assert.match(read(repo, 'vitest.config.ts'), /'apps\/\*'/, 'root vitest.config.ts must include apps/* as projects');
+});
+
 test('using an add-on wires it into an existing service', () => {
   const dir = sandbox();
   assert.ok(read(dir, 'apps/api/src/stack.gen.ts').includes('redis: undefined;'));

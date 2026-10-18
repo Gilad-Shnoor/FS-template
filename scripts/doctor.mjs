@@ -34,7 +34,8 @@ check(major >= 24, `node ${process.versions.node}`, `node ${process.versions.nod
 check(existsSync(path.join(root, 'node_modules')), 'dependencies installed', 'node_modules missing', 'npm install');
 
 const docker = run('docker', ['info', '--format', '{{.ServerVersion}}']);
-check(docker.ok, `docker ${docker.stdout}`, 'docker is not running', 'start Docker Desktop');
+// Also what `npm test` needs: tests run against fresh testcontainers (Postgres, Redis, RabbitMQ).
+check(docker.ok, `docker ${docker.stdout}`, 'docker is not running (needed by the cluster and by npm test)', 'start Docker Desktop');
 
 const kubectl = run('kubectl', ['version', '--client', '-o', 'json']);
 if (!kubectl.ok) bad('kubectl not found', 'Docker Desktop ships kubectl; make sure it is on PATH');

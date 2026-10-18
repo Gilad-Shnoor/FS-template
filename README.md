@@ -129,9 +129,16 @@ npm run stack -- remove-service billing               # remove from stack.json (
 ## Testing & quality
 
 ```bash
+npm test          # every workspace's tests in one vitest run, against real Postgres/Redis/RabbitMQ
 npm run check     # render --check, eslint (with package-boundary rules), tsc, vitest, script tests
 npm run smoke     # end to end against the running stack: gateway, auth, todo CRUD, errors, request ids
 ```
+
+Tests need Docker but not the cluster: each `npm test` starts fresh containers with
+[testcontainers](https://node.testcontainers.org/) (the same images the cluster runs), provisions
+every service's role and schema from `stack.json`, applies migrations, and removes the containers
+when it's done. Generated services are tested too: a test scaffolds an http service and a worker
+with `new-service`, typechecks them and runs their tests.
 
 CI (`.github/workflows/ci.yml`) runs `npm ci` and the same checks as `npm run check` on pushes to `main` and on pull requests.
 

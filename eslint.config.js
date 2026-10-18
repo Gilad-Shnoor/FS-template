@@ -25,6 +25,7 @@ export default tseslint.config(
       '**/routeTree.gen.ts',
       'infra/k8s/generated/**',
       'templates/**',
+      '.tmp/**',
     ],
   },
   js.configs.recommended,

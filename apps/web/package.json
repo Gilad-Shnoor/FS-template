@@ -10,8 +10,7 @@
     "preview": "vite preview",
     "routes": "tsr generate",
     "routes:watch": "tsr watch",
-    "typecheck": "tsr generate && tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "typecheck": "tsr generate && tsc --noEmit"
   },
   "dependencies": {
     "@app/contracts": "*",

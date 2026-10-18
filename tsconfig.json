@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node"],
+    // scripts/lib is plain .mjs: importable from the TS files below, not type-checked.
+    "allowJs": true,
+    "checkJs": false
+  },
+  "include": ["vitest.config.ts", "vitest.global-setup.ts", "scripts/**/*.ts"]
+}

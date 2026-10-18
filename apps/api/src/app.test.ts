@@ -1,13 +1,18 @@
 import { createLogger, loadConfig } from '@app/server-kit';
+import { createDb } from '@app/server-kit/db';
+import { serviceEnv } from '@app/server-kit/testing-env';
 import request from 'supertest';
-import { describe, expect, it } from 'vitest';
-import { z } from 'zod';
+import { afterAll, describe, expect, it } from 'vitest';
 import { buildApp } from './app';
-import { createMemoryTodoRepo } from './modules/todos/repo';
+import { apiEnvSchema } from './config';
+import { createKnexTodoRepo } from './modules/todos/repo';
 
-// Fast, DB-free tests: auth disabled (dev user) + in-memory repo.
-const config = loadConfig(z.object({}), { SERVICE_NAME: 'api', LOG_LEVEL: 'silent' });
-const app = () => buildApp({ config, logger: createLogger(config), auth: null, todos: createMemoryTodoRepo() });
+// Auth disabled (fixed dev user), real Postgres (the run's test container, migrated like the cluster).
+const config = loadConfig(apiEnvSchema, { ...serviceEnv('api'), AUTH_ENABLED: 'false' });
+const db = createDb({ url: config.DATABASE_URL, schema: config.DB_SCHEMA });
+const app = () => buildApp({ config, logger: createLogger(config), auth: null, todos: createKnexTodoRepo(db) });
+
+afterAll(() => db.destroy());
 
 describe('api', () => {
   it('reports the dev user when auth is disabled', async () => {
@@ -25,8 +30,11 @@ describe('api', () => {
     const updated = await request(a).patch(`/api/todos/${id}`).send({ completed: true });
     expect(updated.body.completed).toBe(true);
 
-    const list = await request(a).get('/api/todos').query({ completed: 'true' });
-    expect(list.body.items).toHaveLength(1);
+    // Other tests share the dev user, so look for this todo rather than counting.
+    const completed = await request(a).get('/api/todos').query({ completed: 'true' });
+    expect(completed.body.items.map((t: { id: string }) => t.id)).toContain(id);
+    const open = await request(a).get('/api/todos').query({ completed: 'false' });
+    expect(open.body.items.map((t: { id: string }) => t.id)).not.toContain(id);
 
     expect((await request(a).delete(`/api/todos/${id}`)).status).toBe(204);
     expect((await request(a).delete(`/api/todos/${id}`)).status).toBe(404);
