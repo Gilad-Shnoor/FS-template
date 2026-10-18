@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { newService, preprocess, setGrant, setLink, setUses } from './lib/generate.mjs';
 import { provisionSql, renderAll, writeRendered } from './lib/render.mjs';
 import { StackError, loadStack, normalizeStack } from './lib/stack.mjs';
+import * as stackLib from './lib/stack.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -157,12 +158,105 @@ test('worker without db gets rabbitmq and no db files', () => {
 test('grants are declarative: revoke all, then grant what stack.json says', () => {
   const dir = sandbox();
   newService(dir, 'reports', { db: 'own' });
-  setGrant(dir, 'api', 'reports', 'read');
+  setGrant(dir, 'api', 'reports', ['read']);
   const sql = provisionSql(loadStack(dir));
   assert.match(sql, /REVOKE ALL ON ALL TABLES IN SCHEMA "api" FROM "reports"/);
   assert.match(sql, /GRANT SELECT ON ALL TABLES IN SCHEMA "api" TO "reports"/);
   setGrant(dir, 'api', 'reports', 'none');
   assert.doesNotMatch(provisionSql(loadStack(dir)), /GRANT SELECT ON ALL TABLES IN SCHEMA "api"/);
+});
+
+// ---------------------------------------------------------------- granular grants
+
+/** api owns a schema; reports gets `grant` on it. */
+const grantStack = (grant) => ({
+  project: 'grants-test',
+  services: {
+    api: { template: 'http', db: { mode: 'own', grants: { reports: grant } } },
+    reports: { template: 'http', db: 'own' },
+  },
+});
+const grantSql = (grant) => provisionSql(normalizeStack(grantStack(grant)));
+const rejects = (grant, message) =>
+  assert.throws(() => normalizeStack(grantStack(grant)), (err) => err instanceof StackError && message.test(err.message));
+
+test('each grant level maps to its table privilege, in a fixed order', () => {
+  const cases = [
+    [['read'], 'SELECT'],
+    [['write'], 'INSERT'],
+    [['read', 'write'], 'SELECT, INSERT'],
+    [['read', 'modify'], 'SELECT, UPDATE'],
+    [['read', 'delete'], 'SELECT, DELETE'],
+    [['delete', 'modify', 'write', 'read'], 'SELECT, INSERT, UPDATE, DELETE'],
+  ];
+  for (const [grant, privs] of cases) {
+    const sql = grantSql(grant);
+    assert.ok(sql.includes(`GRANT USAGE ON SCHEMA "api" TO "reports";`), `${grant}: schema usage`);
+    assert.ok(sql.includes(`GRANT ${privs} ON ALL TABLES IN SCHEMA "api" TO "reports";`), `${grant}: existing tables get ${privs}`);
+    assert.ok(
+      sql.includes(`ALTER DEFAULT PRIVILEGES FOR ROLE "api" IN SCHEMA "api" GRANT ${privs} ON TABLES TO "reports";`),
+      `${grant}: future tables get ${privs}`,
+    );
+  }
+});
+
+test('only write grants sequence usage (so inserts can use serial/identity defaults)', () => {
+  const sequenceGrants = /GRANT USAGE, SELECT ON (ALL SEQUENCES IN SCHEMA "api"|SEQUENCES) TO "reports"/g;
+  for (const grant of [['write'], ['read', 'write'], ['read', 'write', 'modify', 'delete']]) {
+    assert.equal(grantSql(grant).match(sequenceGrants)?.length, 2, `${grant}: existing + future sequences`);
+  }
+  for (const grant of [['read'], ['read', 'modify'], ['read', 'delete'], ['read', 'modify', 'delete']]) {
+    assert.doesNotMatch(grantSql(grant), sequenceGrants, `${grant}: no sequence grants`);
+  }
+});
+
+test('grant levels are stored in a fixed order, whatever order stack.json lists them in', () => {
+  assert.deepEqual(normalizeStack(grantStack(['delete', 'read'])).services.api.db.grants.reports, ['read', 'delete']);
+  assert.equal(grantSql(['modify', 'write', 'read']), grantSql(['read', 'write', 'modify']));
+});
+
+test('a grant must be a non-empty array of known levels', () => {
+  rejects('read', /db\.grants\.reports: must be an array of read \| write \| modify \| delete/);
+  rejects('readwrite', /db\.grants\.reports: must be an array of read \| write \| modify \| delete/);
+  rejects([], /db\.grants\.reports: .*at least one level/);
+  rejects(['readwrite'], /db\.grants\.reports: .*unknown level "readwrite"/);
+  rejects(['read', 'execute'], /db\.grants\.reports: .*unknown level "execute"/);
+  rejects(['read', 'read'], /db\.grants\.reports: .*duplicate level "read"/);
+});
+
+test('modify and delete require read (Postgres needs SELECT for WHERE and RETURNING)', () => {
+  for (const grant of [['modify'], ['delete'], ['write', 'modify'], ['modify', 'delete']]) {
+    rejects(grant, /db\.grants\.reports: modify\/delete require read/);
+  }
+  for (const grant of [['write'], ['read', 'modify'], ['read', 'delete']]) {
+    assert.doesNotThrow(() => normalizeStack(grantStack(grant)), `${grant} is valid`);
+  }
+});
+
+test('the grant CLI parses a comma-separated level list or none', () => {
+  const { parseGrantLevels } = stackLib;
+  assert.deepEqual(parseGrantLevels('read'), ['read']);
+  assert.deepEqual(parseGrantLevels('modify,read'), ['read', 'modify']);
+  assert.deepEqual(parseGrantLevels(' read , write '), ['read', 'write']);
+  assert.equal(parseGrantLevels('none'), 'none');
+  for (const bad of ['', 'readwrite', 'read,read', 'read,none', 'modify']) {
+    assert.throws(() => parseGrantLevels(bad), StackError, `"${bad}" should be rejected`);
+  }
+});
+
+test('setGrant stores the array, removes with none, and refuses invalid grants without writing', () => {
+  const dir = sandbox();
+  newService(dir, 'reports', { db: 'own' });
+  const rawApi = () => JSON.parse(read(dir, 'stack.json')).services.api;
+
+  setGrant(dir, 'api', 'reports', ['modify', 'read']);
+  assert.deepEqual(rawApi().db, { mode: 'own', grants: { reports: ['read', 'modify'] } });
+
+  assert.throws(() => setGrant(dir, 'api', 'reports', ['delete']), /modify\/delete require read/);
+  assert.deepEqual(rawApi().db.grants.reports, ['read', 'modify'], 'stack.json unchanged after a rejected grant');
+
+  setGrant(dir, 'api', 'reports', 'none');
+  assert.equal(rawApi().db, 'own');
 });
 
 test('linking to a worker is rejected', () => {
