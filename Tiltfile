@@ -23,6 +23,20 @@ if k8s_context() != plan['kubeContext']:
     fail('kubectl context is "%s" but stack.json expects "%s". Run: kubectl config use-context %s' % (
         k8s_context(), plan['kubeContext'], plan['kubeContext']))
 
+# The gateway controller is cluster-wide (installed once by `npm run cluster:setup`, shared by every
+# project's namespace), so this Tiltfile doesn't deploy it. Make sure it's running: if it's scaled to
+# 0 (`npm run down` does that when no other project uses it), nothing programs the Gateway, port 80
+# refuses connections, and every workload still looks healthy. Not on `tilt down`, which also loads this file.
+if config.tilt_subcommand in ['up', 'ci']:
+    gateway_replicas = str(local(
+        'kubectl --context %s -n envoy-gateway-system get deployment envoy-gateway --ignore-not-found -o jsonpath={.spec.replicas}' % plan['kubeContext'],
+        quiet=True, echo_off=True)).strip()
+    if gateway_replicas == '':
+        fail('Envoy Gateway is not installed in "%s". Run: npm run cluster:setup' % plan['kubeContext'])
+    if gateway_replicas == '0':
+        print('Envoy Gateway controller was scaled to 0; scaling it back to 1.')
+        local('kubectl --context %s -n envoy-gateway-system scale deployment envoy-gateway --replicas=1' % plan['kubeContext'], quiet=True)
+
 k8s_yaml(kustomize('infra/k8s'))
 ns = plan['namespace']
 

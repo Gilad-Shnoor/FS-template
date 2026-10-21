@@ -39,7 +39,8 @@ npm run dev             # tilt up: builds, deploys, live-reloads
 Open http://app.localhost. The API is served on the same host under `/api` (try http://app.localhost/api/readyz). The Tilt UI is at
 http://localhost:10350. Then check the whole stack end to end with `npm run smoke`.
 
-Stop with `Ctrl+C`, then `npm run down` (removes the workloads, keeps the database volume). `npm run reset`
+Stop with `Ctrl+C`, then `npm run down` (removes the workloads, keeps the database volume, and stops the
+cluster-wide Envoy Gateway controller if no other project's Gateway uses it; `npm run dev` restarts it). `npm run reset`
 deletes the namespace **including the database**; use it to start from scratch.
 
 Good to know:
