@@ -1,7 +1,23 @@
 // `new-service` generator: copies a template into apps/<name>, writes its contract, updates stack.json.
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { DB_MODES, StackError, TEMPLATES, loadRawStack, normalizeStack, saveRawStack, sortGrantLevels, toCamel, toConst, toPascal, toPgName } from './stack.mjs';
+import {
+  ADDONS,
+  DB_MODES,
+  StackError,
+  TEMPLATES,
+  knownList,
+  loadRawStack,
+  loadStack,
+  nameError,
+  normalizeStack,
+  saveRawStack,
+  sortGrantLevels,
+  toCamel,
+  toConst,
+  toPascal,
+  toPgName,
+} from './stack.mjs';
 
 /** Keep or drop `// @if flag` … `// @endif` blocks. Supports `!flag`. Not nestable (keep templates simple). */
 export function preprocess(source, flags) {
@@ -44,23 +60,49 @@ function walk(dir, base = dir) {
 
 const csv = (v) => (v ? String(v).split(',').map((s) => s.trim()).filter(Boolean) : []);
 
+function unknownService(raw, name) {
+  return new StackError(`Unknown service "${name}" ${knownList('services', Object.keys(raw.services ?? {}))}`);
+}
+
+/**
+ * Validate an edited stack.json before saving it. If the edit is the problem, say nothing was
+ * changed; if stack.json was already invalid, report that instead (it has to be fixed first).
+ */
+function validateEdit(root, raw) {
+  try {
+    normalizeStack(raw);
+  } catch (err) {
+    if (!(err instanceof StackError) || !err.problems) throw err;
+    loadStack(root); // throws "stack.json is invalid" if the file on disk is the problem
+    throw new StackError(`Nothing changed: this would make stack.json invalid:\n  - ${err.problems.join('\n  - ')}`, err.problems);
+  }
+}
+
 /**
  * Create a new service. Returns a summary of what changed.
  * opts: { template, db, public, consumers, uses, replicas }
  */
 export function newService(root, name, opts = {}) {
+  if (nameError(name)) throw new StackError(`Service name ${nameError(name)}`);
   const template = opts.template ?? 'http';
-  if (!TEMPLATES[template] || template === 'web') throw new StackError(`--template must be http or worker`);
+  if (!TEMPLATES[template] || template === 'web') throw new StackError(`--template must be http or worker, got "${template}"`);
   const db = opts.db ?? (template === 'worker' ? 'none' : 'own');
-  if (!DB_MODES.includes(db)) throw new StackError(`--db must be one of ${DB_MODES.join(', ')}`);
+  if (!DB_MODES.includes(db)) throw new StackError(`--db must be one of ${DB_MODES.join(', ')}, got "${db}"`);
+  const replicas = Number(opts.replicas ?? 1);
+  if (!Number.isInteger(replicas) || replicas < 1) throw new StackError(`--replicas must be a positive integer, got "${opts.replicas}"`);
 
   const raw = loadRawStack(root);
   raw.services ??= {};
   if (raw.services[name]) throw new StackError(`Service "${name}" already exists in stack.json`);
   const appDir = path.join(root, 'apps', name);
-  if (existsSync(appDir)) throw new StackError(`apps/${name} already exists`);
+  if (existsSync(appDir)) {
+    throw new StackError(`apps/${name} already exists but isn't in stack.json (left over from a removed service?). Delete it or pick another name.`);
+  }
 
   const uses = csv(opts.uses);
+  for (const addon of uses) {
+    if (!ADDONS[addon]) throw new StackError(`--uses: unknown add-on "${addon}" ${knownList('known', Object.keys(ADDONS))}`);
+  }
   if (template === 'worker' && !uses.includes('rabbitmq')) uses.push('rabbitmq');
   const consumers = csv(opts.consumers);
 
@@ -73,14 +115,14 @@ export function newService(root, name, opts = {}) {
     db,
     uses,
     calls: [],
-    replicas: Number(opts.replicas ?? 1),
+    replicas,
   };
   for (const consumer of consumers) {
     const c = raw.services[consumer];
-    if (!c) throw new StackError(`--consumers: unknown service "${consumer}"`);
+    if (!c) throw new StackError(`--consumers: unknown service "${consumer}" ${knownList('services', Object.keys(raw.services).filter((n) => n !== name))}`);
     c.calls = [...new Set([...(c.calls ?? []), name])];
   }
-  normalizeStack(raw); // throws with a readable list if anything is off
+  validateEdit(root, raw); // throws with a readable list if anything is off
 
   // 2. apps/<name> from the template
   const flags = { db: db !== 'none', redis: uses.includes('redis'), rabbitmq: uses.includes('rabbitmq') };
@@ -132,16 +174,18 @@ export function setAddon(root, addon, enabled) {
   raw.addons[addon] = { ...raw.addons[addon], enabled };
   if (!enabled) {
     const users = Object.entries(raw.services ?? {}).filter(([, s]) => (s.uses ?? []).includes(addon)).map(([n]) => n);
-    if (users.length) throw new StackError(`Can't disable "${addon}": used by ${users.join(', ')}. Remove it from their "uses" first.`);
+    if (users.length) {
+      throw new StackError(`Can't disable "${addon}": used by ${users.join(', ')}. First run: ${users.map((u) => `npm run stack -- use ${u} ${addon} --remove`).join('; ')}`);
+    }
   }
-  normalizeStack(raw);
+  validateEdit(root, raw);
   saveRawStack(root, raw);
 }
 
 export function setUses(root, service, addon, on) {
   const raw = loadRawStack(root);
   const s = raw.services?.[service];
-  if (!s) throw new StackError(`Unknown service "${service}"`);
+  if (!s) throw unknownService(raw, service);
   const set = new Set(s.uses ?? []);
   if (on) {
     set.add(addon);
@@ -149,19 +193,19 @@ export function setUses(root, service, addon, on) {
     raw.addons[addon] = { ...raw.addons[addon], enabled: true };
   } else set.delete(addon);
   s.uses = [...set];
-  normalizeStack(raw);
+  validateEdit(root, raw);
   saveRawStack(root, raw);
 }
 
 export function setLink(root, from, to, on) {
   const raw = loadRawStack(root);
   const s = raw.services?.[from];
-  if (!s) throw new StackError(`Unknown service "${from}"`);
+  if (!s) throw unknownService(raw, from);
   const set = new Set(s.calls ?? []);
   if (on) set.add(to);
   else set.delete(to);
   s.calls = [...set];
-  normalizeStack(raw);
+  validateEdit(root, raw);
   saveRawStack(root, raw);
 }
 
@@ -169,24 +213,24 @@ export function setLink(root, from, to, on) {
 export function setGrant(root, owner, grantee, levels) {
   const raw = loadRawStack(root);
   const s = raw.services?.[owner];
-  if (!s) throw new StackError(`Unknown service "${owner}"`);
+  if (!s) throw unknownService(raw, owner);
   const db = typeof s.db === 'string' || !s.db ? { mode: s.db ?? 'none', grants: {} } : { ...s.db, grants: { ...s.db.grants } };
   if (levels === 'none') delete db.grants[grantee];
   else db.grants[grantee] = Array.isArray(levels) ? sortGrantLevels(levels) : levels;
   s.db = Object.keys(db.grants).length ? db : db.mode;
-  normalizeStack(raw);
+  validateEdit(root, raw);
   saveRawStack(root, raw);
 }
 
 export function removeService(root, name) {
   const raw = loadRawStack(root);
-  if (!raw.services?.[name]) throw new StackError(`Unknown service "${name}"`);
+  if (!raw.services?.[name]) throw unknownService(raw, name);
   delete raw.services[name];
   for (const s of Object.values(raw.services)) {
     if (s.calls) s.calls = s.calls.filter((c) => c !== name);
     if (s.routes) for (const [p, t] of Object.entries(s.routes)) if (t === name) delete s.routes[p];
     if (s.db && typeof s.db === 'object' && s.db.grants) delete s.db.grants[name];
   }
-  normalizeStack(raw);
+  validateEdit(root, raw);
   saveRawStack(root, raw);
 }

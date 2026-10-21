@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { newService, removeService, setAddon, setGrant, setLink, setUses } from './lib/generate.mjs';
 import { renderAll, writeRendered } from './lib/render.mjs';
-import { ADDONS, GRANT_LEVELS, StackError, loadStack, parseGrantLevels } from './lib/stack.mjs';
+import { ADDONS, GRANT_LEVELS, StackError, knownList, loadStack, parseGrantLevels } from './lib/stack.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const GRANT_USAGE = `Usage: grant <owner> <grantee> <levels|none>   (levels: comma list of ${GRANT_LEVELS.join(', ')})`;
@@ -65,9 +65,18 @@ function kubectl(stack, args, opts = {}) {
 function dbServices(stack, only) {
   const list = Object.values(stack.services).filter((s) => s.db.mode !== 'none');
   if (!only) return list;
-  const svc = list.find((s) => s.name === only);
-  if (!svc) throw new StackError(`"${only}" is not a service with a database`);
+  const svc = stack.services[only];
+  if (!svc) throw new StackError(`Unknown service "${only}" ${knownList('services', Object.keys(stack.services))}`);
+  if (svc.db.mode === 'none') {
+    throw new StackError(`"${only}" has no database (db: none) ${knownList('services with one', list.map((s) => s.name))}`);
+  }
   return [svc];
+}
+
+/** Validate an add-on argument: missing → usage, unknown → name the known ones. */
+function requireAddon(addon, usage) {
+  if (!addon) throw new StackError(usage);
+  if (!ADDONS[addon]) throw new StackError(`Unknown add-on "${addon}" ${knownList('known', Object.keys(ADDONS))}`);
 }
 
 function list() {
@@ -135,6 +144,7 @@ Next steps:
     }
     case 'remove-service': {
       const [name] = positionals;
+      if (!name) throw new StackError('Usage: remove-service <name>');
       const hadDb = loadStack(root).services[name]?.db.mode !== 'none';
       removeService(root, name);
       render();
@@ -151,7 +161,7 @@ Next steps:
     }
     case 'addon': {
       const [addon] = positionals;
-      if (!ADDONS[addon]) throw new StackError(`Usage: addon <${Object.keys(ADDONS).join('|')}> [--disable]`);
+      requireAddon(addon, `Usage: addon <${Object.keys(ADDONS).join('|')}> [--disable]`);
       setAddon(root, addon, !values.disable);
       render();
       if (!values.disable) console.log(`\n${addon} enabled. Let a service use it with: npm run stack -- use <service> ${addon}`);
@@ -159,7 +169,9 @@ Next steps:
     }
     case 'use': {
       const [service, addon] = positionals;
-      if (!service || !ADDONS[addon]) throw new StackError(`Usage: use <service> <${Object.keys(ADDONS).join('|')}> [--remove]`);
+      const usage = `Usage: use <service> <${Object.keys(ADDONS).join('|')}> [--remove]`;
+      if (!service) throw new StackError(usage);
+      requireAddon(addon, usage);
       setUses(root, service, addon, !values.remove);
       render();
       if (!values.remove) console.log(`\n${service} now gets ${Object.keys(ADDONS[addon].env).join(', ')} (see apps/${service}/src/stack.gen.ts). Helper: @app/server-kit/${addon}`);
