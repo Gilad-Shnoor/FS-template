@@ -59,6 +59,10 @@ async function http(method, url, { body, headers = {}, auth = true, base = BASE 
       ...headers,
     },
     body: body !== undefined ? JSON.stringify(body) : undefined,
+  }).catch((err) => {
+    // Node's fetch only says "fetch failed"; the reason (e.g. ECONNREFUSED) is in err.cause.
+    const reason = err.cause?.code ?? err.cause?.message ?? err.message;
+    throw new Error(`${method} ${base + url}: ${reason}. Is the stack up and the gateway running? Try: npm run doctor`);
   });
   const text = await res.text();
   let json;

@@ -1,5 +1,6 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import knex, { type Knex } from 'knex';
 import type { Logger } from './logger';
 
@@ -53,19 +54,64 @@ export interface DbCliOptions {
 
 // TS sources (dev via tsx, tests via vitest) or compiled JS (prod build).
 const sourceExt = () => (import.meta.url.endsWith('.ts') ? 'ts' : 'js');
+const EXTENSION = /\.(ts|js)$/;
+
+/**
+ * Migration files of one extension, recorded by name WITHOUT it: dev runs `x.ts`, the prod build
+ * ships `x.js`, and both must see the same applied migration in the same database.
+ */
+class MigrationFiles implements Knex.MigrationSource<string> {
+  constructor(
+    private readonly directory: string,
+    private readonly ext: string,
+  ) {}
+
+  async getMigrations(): Promise<string[]> {
+    const files = await readdir(this.directory).catch((err: NodeJS.ErrnoException) => {
+      if (err.code === 'ENOENT') return [];
+      throw err;
+    });
+    return files.filter((f) => f.endsWith(`.${this.ext}`)).sort();
+  }
+
+  getMigrationName(file: string): string {
+    return file.replace(EXTENSION, '');
+  }
+
+  getMigration(file: string): Promise<Knex.Migration> {
+    return import(pathToFileURL(path.join(this.directory, file)).href) as Promise<Knex.Migration>;
+  }
+}
 
 /** Where a service's migrations live and where Knex records them. Shared by the CLI and tests. */
-export function migrationConfig(opts: { root: string; service: string; schema: string }): Knex.MigratorConfig {
-  const ext = sourceExt();
+export function migrationConfig(opts: {
+  root: string;
+  service: string;
+  schema: string;
+  ext?: 'ts' | 'js';
+}): Knex.MigratorConfig {
   return {
-    directory: path.join(opts.root, 'migrations'),
-    loadExtensions: [`.${ext}`],
-    extension: ext,
+    migrationSource: new MigrationFiles(path.join(opts.root, 'migrations'), opts.ext ?? sourceExt()),
     // Own schema: keep the bookkeeping table inside it. Shared schema: one table per service.
     ...(opts.schema === 'public'
       ? { tableName: `knex_migrations_${opts.service.replace(/-/g, '_')}` }
       : { schemaName: opts.schema, tableName: 'knex_migrations' }),
   };
+}
+
+/**
+ * Earlier versions recorded migrations with their extension (`x.ts`). Strip it so the migrator
+ * recognises them. Idempotent, and a no-op before the first migration has run.
+ */
+export async function renameLegacyMigrations(db: Knex, config: Knex.MigratorConfig): Promise<void> {
+  const table = config.tableName!;
+  const schema = config.schemaName ?? 'public';
+  if (!(await db.schema.withSchema(schema).hasTable(table))) return;
+  await db
+    .withSchema(schema)
+    .table(table)
+    .whereRaw(`name ~ '\\.(ts|js)$'`)
+    .update({ name: db.raw(`regexp_replace(name, '\\.(ts|js)$', '')`) });
 }
 
 /**
@@ -97,6 +143,7 @@ export async function runDbCli(opts: DbCliOptions, argv = process.argv.slice(2))
   const migrations = migrationConfig({ root: opts.root, service, schema });
 
   try {
+    if (command !== 'seed') await renameLegacyMigrations(db, migrations);
     switch (command) {
       case 'latest': {
         const [batch, files] = (await db.migrate.latest(migrations)) as [number, string[]];
@@ -111,12 +158,9 @@ export async function runDbCli(opts: DbCliOptions, argv = process.argv.slice(2))
         break;
       }
       case 'status': {
-        const [done, pending] = (await db.migrate.list(migrations)) as [
-          { name: string }[],
-          { file: string }[],
-        ];
+        const [done, pending] = (await db.migrate.list(migrations)) as [{ name: string }[], string[]];
         console.log(`Applied (${done.length}):`, done.map((m) => m.name).join(', ') || '-');
-        console.log(`Pending (${pending.length}):`, pending.map((m) => m.file).join(', ') || '-');
+        console.log(`Pending (${pending.length}):`, pending.join(', ') || '-');
         break;
       }
       case 'seed': {

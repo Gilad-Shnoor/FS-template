@@ -3,7 +3,7 @@
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import { RabbitMQContainer } from '@testcontainers/rabbitmq';
 import { RedisContainer } from '@testcontainers/redis';
-import { createDb, migrationConfig } from './db';
+import { createDb, migrationConfig, renameLegacyMigrations } from './db';
 import { IMAGES } from './images.gen';
 
 export interface StartedContainer {
@@ -49,7 +49,9 @@ export async function startRabbitMQ(): Promise<StartedContainer> {
 export async function migrate(opts: { url: string; root: string; service: string; schema: string }): Promise<void> {
   const db = createDb({ url: opts.url, schema: opts.schema });
   try {
-    await db.migrate.latest(migrationConfig(opts));
+    const config = migrationConfig(opts);
+    await renameLegacyMigrations(db, config);
+    await db.migrate.latest(config);
   } finally {
     await db.destroy();
   }

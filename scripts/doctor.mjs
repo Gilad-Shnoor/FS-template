@@ -50,6 +50,19 @@ else {
     if (nodes.ok) {
       const gc = run('kubectl', ['--context', stack.kubeContext, 'get', 'gatewayclass', stack.gateway.className]);
       check(gc.ok, `GatewayClass "${stack.gateway.className}" installed`, 'Envoy Gateway not installed', 'npm run cluster:setup');
+      if (gc.ok) {
+        // An installed GatewayClass is not enough: without a running controller nothing programs
+        // the Gateway, port 80 refuses connections, and Tilt still reports every workload healthy.
+        const ctrl = run('kubectl', ['--context', stack.kubeContext, '-n', 'envoy-gateway-system', 'get', 'deployment', 'envoy-gateway', '-o', 'jsonpath={.status.readyReplicas}']);
+        check(
+          ctrl.ok && Number(ctrl.stdout) > 0,
+          'Envoy Gateway controller running',
+          'Envoy Gateway controller not running (the Gateway is never programmed, port 80 refuses connections)',
+          ctrl.ok
+            ? `kubectl --context ${stack.kubeContext} -n envoy-gateway-system scale deployment envoy-gateway --replicas=1`
+            : 'npm run cluster:setup',
+        );
+      }
     }
   }
 }
