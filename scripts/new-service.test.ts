@@ -71,8 +71,10 @@ describe('generated services', () => {
   });
 
   it("pass their own tests against this run's containers", async () => {
-    // The outer run's VITEST_* vars would confuse the nested run.
-    const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('VITEST')));
+    // The outer run's VITEST_* vars would confuse the nested run, and forced colours (CI sets
+    // FORCE_COLOR) would put escape codes in the summary this test reads.
+    const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('VITEST') && k !== 'FORCE_COLOR'));
+    env.NO_COLOR = '1';
     env.TEST_SHARED_CONTAINERS = JSON.stringify(containerUrls());
     const { ok, output } = await exec('vitest/vitest.mjs', ['run'], env);
     expect(ok, output).toBe(true);
